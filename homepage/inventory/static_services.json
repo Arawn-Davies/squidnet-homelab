@@ -1,0 +1,216 @@
+[
+ {
+  "Proxmox": [
+   {
+    "Proxmox VE": {
+     "href": "https://pve.lab.example.co.uk",
+     "icon": "proxmox.png",
+     "description": "Cluster, via NODE1 (.50)"
+    }
+   },
+   {
+    "NODE2": {
+     "href": "https://node2.lab.example.co.uk",
+     "icon": "proxmox.png",
+     "description": "Node UI (.40)"
+    }
+   },
+   {
+    "NODE1": {
+     "href": "https://node1.lab.example.co.uk",
+     "icon": "proxmox.png",
+     "description": "Node UI (.50)"
+    }
+   },
+   {
+    "NODE3": {
+     "href": "https://node3.lab.example.co.uk",
+     "icon": "proxmox.png",
+     "description": "Node UI (.10)"
+    }
+   },
+   {
+    "NODE4": {
+     "href": "https://node4.lab.example.co.uk",
+     "icon": "proxmox.png",
+     "description": "Node UI (.80, cold spare)"
+    }
+   },
+   {
+    "NODE5": {
+     "href": "https://node5.lab.example.co.uk",
+     "icon": "proxmox.png",
+     "description": "Node UI (.20, cold spare)"
+    }
+   },
+   {
+    "Proxmox Backup": {
+     "href": "https://pbs.lab.example.co.uk",
+     "icon": "proxmox.png",
+     "description": "PBS (VM 157, .100)"
+    }
+   }
+  ]
+ },
+ {
+  "Infrastructure": [
+   {
+    "Portainer": {
+     "href": "https://portainer.lab.example.co.uk",
+     "icon": "portainer.png",
+     "description": "Stacks (LXC 116)",
+     "server": "squidnode01",
+     "container": "portainer"
+    }
+   },
+   {
+    "Nginx Proxy Manager": {
+     "href": "https://npm.lab.example.co.uk",
+     "icon": "nginx-proxy-manager.png",
+     "description": "LAN reverse proxy (.95)"
+    }
+   },
+   {
+    "Router": {
+     "href": "https://router.lab.example.co.uk",
+     "icon": "openwrt.png",
+     "description": "OpenWrt / LuCI (.1)"
+    }
+   },
+   {
+    "Pi-hole": {
+     "href": "https://pihole.lab.example.co.uk/admin/",
+     "icon": "pi-hole.png",
+     "description": "DNS (.61)"
+    }
+   },
+   {
+    "Core switch": {
+     "href": "https://switch.lab.example.co.uk",
+     "icon": "mdi-switch",
+     "description": "Switch (.15)"
+    }
+   },
+   {
+    "Vaultwarden": {
+     "href": "https://squidvault.example.co.uk",
+     "icon": "vaultwarden.png",
+     "description": "Passwords (squidvault)"
+    }
+   }
+  ]
+ },
+ {
+  "Access": [
+   {
+    "Guacamole": {
+     "href": "https://fajita.lab.example.co.uk",
+     "icon": "guacamole.png",
+     "description": "Remote desktop (fajita, LXC 113). Needs NODE4 on"
+    }
+   },
+   {
+    "Bastion IPMI": {
+     "href": "https://ipmi.lab.example.co.uk",
+     "icon": "mdi-server-network",
+     "description": "BMC consoles (LXC 130)"
+    }
+   }
+  ]
+ },
+ {
+  "Security": [
+   {
+    "CrowdSec": {
+     "href": "https://crowdsec.lab.example.co.uk",
+     "icon": "crowdsec.png",
+     "description": "Alerts & bans: self-hosted, guards the public sites (engine on flareon)",
+     "server": "squidnode02",
+     "container": "crowdsec_web_ui"
+    }
+   },
+   {
+    "CrowdSec metrics": {
+     "href": "https://metrics.lab.example.co.uk/d/hjmZdB4nk/crowdsec-overview",
+     "icon": "grafana.png",
+     "description": "Grafana: CrowdSec overview, insight, LAPI (Security folder)"
+    }
+   },
+   {
+    "Authentik": {
+     "href": "https://auth.lab.example.co.uk",
+     "icon": "authentik.png",
+     "description": "SSO for Proxmox, PBS, Portainer, Grafana, CrowdSec, gated pages (LXC 132)"
+    }
+   },
+   {
+    "Patches": {
+     "href": "https://patch.lab.example.co.uk",
+     "icon": "mdi-package-up",
+     "description": "Outdated packages on every node/CT/VM; security alerts; upgrade with snapshot",
+     "widget": {
+      "type": "customapi",
+      "url": "http://10.0.0.50:8780/api/summary",
+      "refreshInterval": 300000,
+      "mappings": [
+       {
+        "field": "security",
+        "label": "Security"
+       },
+       {
+        "field": "critical",
+        "label": "Critical"
+       },
+       {
+        "field": "outdated",
+        "label": "Updates"
+       },
+       {
+        "field": "attention",
+        "label": "Hosts at risk"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "Suricata IDS": {
+     "href": "https://ntfy.example.co.uk/squidnet-ids",
+     "icon": "suricata.png",
+     "description": "Intrusion detection on NODE2 traffic (ET Open, detect-only); high-severity alerts via ntfy",
+     "ping": "10.0.0.210"
+    }
+   },
+   {
+    "ntfy": {
+     "href": "https://ntfy.example.co.uk",
+     "icon": "ntfy.png",
+     "description": "Push alerts: squidnet-alerts (Grafana), squidnet-ids (Suricata)",
+     "siteMonitor": "http://10.0.0.205:2586/v1/health"
+    }
+   }
+  ]
+ },
+ {
+  "Media": [
+   {
+    "Jellyfin": {
+     "href": "https://jellyfin.lab.example.co.uk",
+     "icon": "jellyfin.png",
+     "description": "Media (.65)"
+    }
+   }
+  ]
+ },
+ {
+  "Lab": [
+   {
+    "PS4 host": {
+     "href": "http://ps4.lab.example.co.uk",
+     "icon": "mdi-sony-playstation",
+     "description": "Exploit host (LXC 115)"
+    }
+   }
+  ]
+ }
+]

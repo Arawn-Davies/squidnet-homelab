@@ -1,0 +1,10 @@
+{
+ "title": "SQUIDLAB",
+ "theme": "dark",
+ "color": "slate",
+ "headerStyle": "clean",
+ "hideVersion": true,
+ "disableUpdateCheck": true,
+ "statusStyle": "dot",
+ "layout_overrides": {}
+}

@@ -1,0 +1,8 @@
+[Unit]
+Description=squidpatch: full package check every 6 hours
+[Timer]
+OnCalendar=00/6:20
+RandomizedDelaySec=10m
+Persistent=true
+[Install]
+WantedBy=timers.target

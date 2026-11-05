@@ -1,0 +1,6 @@
+squidnode02:
+  host: dockerproxy
+  port: 2375
+squidnode01:
+  host: 10.0.0.85
+  port: 2375

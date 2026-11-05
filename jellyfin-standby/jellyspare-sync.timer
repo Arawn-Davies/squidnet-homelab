@@ -1,0 +1,6 @@
+[Unit]
+Description=Nightly Jellyfin standby refresh (only while NODE5 is on)
+[Timer]
+OnCalendar=*-*-* 04:15
+[Install]
+WantedBy=timers.target

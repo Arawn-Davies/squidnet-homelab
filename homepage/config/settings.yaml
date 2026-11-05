@@ -1,0 +1,96 @@
+{
+ "title": "SQUIDLAB",
+ "theme": "dark",
+ "color": "slate",
+ "headerStyle": "clean",
+ "hideVersion": true,
+ "disableUpdateCheck": true,
+ "statusStyle": "dot",
+ "layout": {
+  "Proxmox": {
+   "tab": "Home",
+   "style": "row",
+   "columns": 4
+  },
+  "Infrastructure": {
+   "tab": "Home",
+   "style": "row",
+   "columns": 4
+  },
+  "Monitoring": {
+   "tab": "Home",
+   "style": "row",
+   "columns": 4
+  },
+  "Access": {
+   "tab": "Home",
+   "style": "row",
+   "columns": 4
+  },
+  "Security": {
+   "tab": "Home",
+   "style": "row",
+   "columns": 4
+  },
+  "Media": {
+   "tab": "Home",
+   "style": "row",
+   "columns": 4
+  },
+  "Lab": {
+   "tab": "Home",
+   "style": "row",
+   "columns": 4
+  },
+  "NODE1 (24/7)": {
+   "tab": "Guests",
+   "style": "row",
+   "columns": 4
+  },
+  "NODE2 (24/7)": {
+   "tab": "Guests",
+   "style": "row",
+   "columns": 4
+  },
+  "NODE3 (24/7)": {
+   "tab": "Guests",
+   "style": "row",
+   "columns": 4
+  },
+  "NODE5 (cold spare)": {
+   "tab": "Guests",
+   "style": "row",
+   "columns": 4
+  },
+  "NODE4 (cold spare)": {
+   "tab": "Guests",
+   "style": "row",
+   "columns": 4
+  },
+  "Docker · squidnode02 (CT104)": {
+   "tab": "Guests",
+   "style": "row",
+   "columns": 4
+  },
+  "Docker · squidnode01 (CT116)": {
+   "tab": "Guests",
+   "style": "row",
+   "columns": 4
+  },
+  "Network · static (10.0.0.x)": {
+   "tab": "Network",
+   "style": "row",
+   "columns": 3
+  },
+  "Network · DHCP pool (10.0.1.x)": {
+   "tab": "Network",
+   "style": "row",
+   "columns": 3
+  },
+  "Network · not seen for 30+ days": {
+   "tab": "Network",
+   "style": "row",
+   "columns": 3
+  }
+ }
+}

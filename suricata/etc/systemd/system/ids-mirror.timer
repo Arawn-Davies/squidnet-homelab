@@ -1,0 +1,7 @@
+[Unit]
+Description=Re-apply Suricata traffic mirror every minute (flareon veth is recreated on CT restart)
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=1min
+[Install]
+WantedBy=timers.target

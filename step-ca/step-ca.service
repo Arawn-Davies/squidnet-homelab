@@ -1,0 +1,27 @@
+[Unit]
+Description=step-ca (SQUIDNET SSH CA)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=step
+Group=step
+Environment=STEPPATH=/etc/step-ca
+WorkingDirectory=/etc/step-ca
+ExecStart=/usr/bin/step-ca config/ca.json --password-file secrets/password
+Restart=on-failure
+RestartSec=5
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ReadWritePaths=/etc/step-ca/db
+
+[Install]
+WantedBy=multi-user.target

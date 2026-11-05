@@ -1,0 +1,16 @@
+type: leaky
+name: squidlab/jellyfin-bf
+description: "Jellyfin failed logins via the tunnel proxy (401 on /Users/AuthenticateByName), incl. unknown usernames"
+filter: "evt.Meta.log_type == 'http_access-log' && evt.Meta.http_verb == 'POST' && evt.Meta.http_status == '401' && Lower(evt.Meta.http_path) contains '/users/authenticatebyname'"
+groupby: evt.Meta.source_ip
+capacity: 4
+leakspeed: 1m
+blackhole: 5m
+labels:
+  service: jellyfin
+  type: bruteforce
+  confidence: 3
+  spoofable: 0
+  behavior: "http:bruteforce"
+  label: "Jellyfin login brute force"
+  remediation: true

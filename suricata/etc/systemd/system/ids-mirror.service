@@ -1,0 +1,6 @@
+[Unit]
+Description=Mirror NODE2 traffic to vmbr9 for Suricata (CT138)
+After=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ids-mirror.sh

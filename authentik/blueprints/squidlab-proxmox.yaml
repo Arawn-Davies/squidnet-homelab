@@ -1,0 +1,42 @@
+# Authentik blueprint: Proxmox VE OIDC (realm "authentik" on cluster SQUIDNET). Applied 2026-11-04.
+version: 1
+metadata:
+  name: squidlab-proxmox
+  labels:
+    blueprints.goauthentik.io/description: "Proxmox VE OpenID Connect login for SQUIDNET"
+entries:
+  - model: authentik_providers_oauth2.oauth2provider
+    id: proxmox-provider
+    identifiers:
+      name: Proxmox VE
+    attrs:
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      client_type: confidential
+      grant_types: [authorization_code, refresh_token]
+      client_id: proxmox
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      sub_mode: hashed_user_id
+      include_claims_in_id_token: true
+      redirect_uris:
+        - {matching_mode: strict, url: "https://pve.lab.example.co.uk"}
+        - {matching_mode: strict, url: "https://node1.lab.example.co.uk"}
+        - {matching_mode: strict, url: "https://node2.lab.example.co.uk"}
+        - {matching_mode: strict, url: "https://10.0.0.50:8006"}
+        - {matching_mode: strict, url: "https://10.0.0.40:8006"}
+        - {matching_mode: strict, url: "https://10.0.0.10:8006"}
+        - {matching_mode: strict, url: "https://10.0.0.80:8006"}
+        - {matching_mode: strict, url: "https://10.0.0.20:8006"}
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+  - model: authentik_core.application
+    identifiers:
+      slug: proxmox
+    attrs:
+      name: Proxmox VE
+      provider: !KeyOf proxmox-provider
+      meta_launch_url: https://pve.lab.example.co.uk
+      meta_description: SQUIDNET cluster
+      policy_engine_mode: any

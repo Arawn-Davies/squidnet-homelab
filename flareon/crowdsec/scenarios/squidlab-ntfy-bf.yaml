@@ -1,0 +1,16 @@
+type: leaky
+name: squidlab/ntfy-bf
+description: "ntfy failed auth via the tunnel proxy (401/403 on ntfy.example.co.uk)"
+filter: "evt.Meta.log_type == 'http_access-log' && evt.Line.Src contains 'tunnel-ntfy' && evt.Meta.http_status in ['401', '403']"
+groupby: evt.Meta.source_ip
+capacity: 6
+leakspeed: 1m
+blackhole: 5m
+labels:
+  service: ntfy
+  type: bruteforce
+  confidence: 3
+  spoofable: 0
+  behavior: "http:bruteforce"
+  label: "ntfy login brute force"
+  remediation: true

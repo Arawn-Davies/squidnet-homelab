@@ -1,0 +1,12 @@
+[Unit]
+Description=Refresh Jellyfin standby CT136 from the primary (CT107 on NODE1)
+After=network-online.target pve-guests.service pve-cluster.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/jellyspare-sync.sh
+TimeoutStartSec=6h
+
+[Install]
+WantedBy=multi-user.target

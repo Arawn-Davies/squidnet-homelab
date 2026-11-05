@@ -1,0 +1,13 @@
+[Unit]
+Description=squidpatch - SQUIDNET outdated packages dashboard (LAN-only via NPM + Authentik)
+After=network-online.target pve-cluster.service
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/squidpatch/squidpatch.py serve
+Restart=on-failure
+RestartSec=5
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,6 @@
+[Unit]
+Description=Update Suricata ET Open rules and reload
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/suricata-update -q --no-test
+ExecStartPost=/bin/sh -c 'suricata -T -c /etc/suricata/suricata.yaml >/dev/null 2>&1 && systemctl reload-or-restart suricata'

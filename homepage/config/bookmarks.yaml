@@ -1,0 +1,7 @@
+- Cloudflare:
+  - Dashboard:
+    - href: https://dash.cloudflare.com
+      abbr: CF
+  - Zero Trust:
+    - href: https://one.dash.cloudflare.com
+      abbr: ZT

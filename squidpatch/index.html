@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SQUIDNET Patches</title>
+<style>
+:root{--bg:#0f1216;--panel:#171b21;--panel2:#1d222a;--line:#2a313b;--text:#e6e9ee;--mut:#8b95a3;--ok:#3fb950;--warn:#d29922;--bad:#f85149;--crit:#ff2d55;--info:#58a6ff;--btn:#263040}
+@media (prefers-color-scheme: light){:root{--bg:#f5f7fa;--panel:#fff;--panel2:#f0f3f7;--line:#d8dee6;--text:#1b2230;--mut:#5d6878;--btn:#e7ecf2}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+h1{font-size:18px;margin:0}h1 span{color:var(--mut);font-weight:400;font-size:13px;margin-left:8px}
+main{max-width:1250px;margin:0 auto;padding:16px}
+.stats{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-width:120px}
+.stat b{display:block;font-size:22px}.stat small{color:var(--mut)}
+.alert{border:1px solid var(--bad);background:color-mix(in srgb,var(--bad) 12%,var(--panel));border-radius:10px;padding:10px 14px;margin-bottom:14px}
+.alert h3{margin:0 0 6px;font-size:14px;color:var(--bad)}.alert ul{margin:0;padding-left:18px}
+.node{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:14px;overflow:hidden}
+.node>h2{margin:0;padding:10px 14px;font-size:15px;background:var(--panel2);border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center}
+table{width:100%;border-collapse:collapse}td,th{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{color:var(--mut);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+tr.host:hover{background:var(--panel2)}tr.host{cursor:pointer}
+.kind{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:4px;padding:0 5px;margin-right:6px}
+.b{display:inline-block;border-radius:999px;padding:1px 8px;font-size:12px;font-weight:600;white-space:nowrap}
+.b.ok{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}.b.warn{background:color-mix(in srgb,var(--warn) 20%,transparent);color:var(--warn)}
+.b.bad{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}.b.crit{background:var(--crit);color:#fff}.b.mut{color:var(--mut);border:1px solid var(--line)}
+.b.info{background:color-mix(in srgb,var(--info) 18%,transparent);color:var(--info)}
+button{background:var(--btn);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:5px 10px;font:inherit;cursor:pointer}
+button:hover{border-color:var(--info)}button.danger{border-color:var(--warn)}button:disabled{opacity:.45;cursor:not-allowed}
+.pk{background:var(--panel2)}.pk td{padding:6px 10px 12px 34px}.pk table td{padding:3px 8px;border:0;font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+.mut{color:var(--mut)}.right{text-align:right}.nowrap{white-space:nowrap}
+.filter{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:12px;max-width:min(900px,94vw);width:900px;padding:0}
+dialog header{border:0}dialog pre{margin:0;padding:12px 16px;max-height:60vh;overflow:auto;font-size:12px;background:var(--bg);white-space:pre-wrap}
+dialog .body{padding:14px 16px}dialog .actions{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--line)}
+.jobs td{font-size:13px}
+@media (max-width:760px){.hide-s{display:none}td,th{padding:7px 6px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>SQUIDNET Patches<span id="gen">loading…</span></h1>
+  <div class="filter">
+    <label><input type="checkbox" id="onlyAtt"> only needing attention</label>
+    <button id="checkAll">Check all now</button>
+  </div>
+</header>
+<main>
+  <div class="stats" id="stats"></div>
+  <div id="alerts"></div>
+  <div id="nodes"></div>
+  <div class="node" id="jobsBox" hidden><h2>Recent upgrade jobs</h2><table class="jobs"><tbody id="jobs"></tbody></table></div>
+  <p class="mut">Checks run every 6 h (and after each upgrade). Upgrades take a Proxmox snapshot first (kept 7 days, named <code>patch-…</code>), run <code>apt full-upgrade</code> keeping your config files, and never reboot. Proxmox nodes can't be snapshotted.</p>
+</main>
+<dialog id="dlg"><header><h1 id="dlgT"></h1><button id="dlgX">Close</button></header><div class="body" id="dlgB"></div><pre id="dlgLog" hidden></pre><div class="actions" id="dlgA"></div></dialog>
+<script>
+const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let S=null, open=new Set(), logTimer=null;
+try{ $('#onlyAtt').checked = localStorage.getItem('sp-only')==='1' }catch(e){}
+$('#onlyAtt').onchange=e=>{try{localStorage.setItem('sp-only',e.target.checked?'1':'0')}catch(_){};render()};
+const ago=t=>{if(!t)return 'never';const s=Date.now()/1000-t;return s<90?'just now':s<5400?Math.round(s/60)+' min ago':s<172800?Math.round(s/3600)+' h ago':Math.round(s/86400)+' d ago'};
+async function api(p,body){const o=body?{method:'POST',headers:{'Content-Type':'application/json','X-Squidpatch':'1'},body:JSON.stringify(body)}:{};const r=await fetch(p,o);const t=await r.text();let j;try{j=JSON.parse(t)}catch(_){j=t}if(!r.ok)throw new Error(j.error||r.status);return j}
+function attention(h){const r=h.result||{};if(!r.ok)return !r.skip&&!h.stale;return r.counts.security>0||r.reboot||(r.eol&&r.eol.status!=='ok')}
+function badges(h){const r=h.result;if(h.stale&&!r)return '<span class="b mut">stopped</span>';if(!r)return '<span class="b mut">not checked</span>';
+ if(!r.ok)return r.skip?`<span class="b mut">${esc(r.error)}</span>`:`<span class="b bad" title="${esc(r.error)}">check failed</span>`;
+ let o=[];const c=r.counts;
+ if(c.critical)o.push(`<span class="b crit">${c.critical} critical</span>`);
+ if(c.security)o.push(`<span class="b bad">${c.security} security</span>`);
+ if(c.total-c.security)o.push(`<span class="b warn">${c.total-c.security} updates</span>`);
+ if(!c.total)o.push('<span class="b ok">up to date</span>');
+ if(c.kept)o.push(`<span class="b mut" title="phased/kept back">${c.kept} held</span>`);
+ if(r.reboot)o.push('<span class="b info">reboot needed</span>');
+ if(r.eol&&r.eol.status==='eol')o.push(`<span class="b crit">OS end-of-life</span>`);else if(r.eol&&r.eol.status==='soon')o.push(`<span class="b warn">EOL in ${r.eol.days} d</span>`);
+ if(r.update_rc)o.push('<span class="b warn" title="apt-get update failed; list may be stale">update error</span>');
+ if(h.stale)o.push('<span class="b mut">stopped (last known)</span>');
+ return o.join(' ')}
+function row(h){const r=h.result||{},busy=(S.jobs||[]).some(j=>j.key===h.key&&['queued','running'].includes(j.status));
+ const can=S.admin&&r.ok&&!h.stale&&r.counts.total>0&&!busy;
+ const os=r.os?esc(r.os.pretty):'';const plat=r.platform?`<div class="mut">${esc(r.platform)}</div>`:'';
+ let html=`<tr class="host" data-k="${esc(h.key)}"><td class="nowrap"><span class="kind">${h.kind==='node'?'NODE':h.kind.toUpperCase()+' '+esc(h.id)}</span>${esc(h.name)}</td>
+ <td class="hide-s">${os}${plat}</td><td>${badges(h)}</td><td class="mut nowrap hide-s">${ago(h.checked)}</td>
+ <td class="right nowrap"><button data-a="check" data-k="${esc(h.key)}" ${S.admin&&!h.stale?'':'disabled'}>Check</button>
+ <button class="danger" data-a="up" data-k="${esc(h.key)}" ${can?'':'disabled'}>${busy?'Upgrading…':'Upgrade'}</button></td></tr>`;
+ if(open.has(h.key)&&r.ok){const pk=r.packages||[];
+  html+=`<tr class="pk"><td colspan="5">${pk.length?`<table>${pk.map(p=>`<tr><td>${p.critical?'<span class="b crit">critical</span>':p.security?'<span class="b bad">security</span>':p.kept?'<span class="b mut">held</span>':''}</td><td>${esc(p.name)}</td><td class="mut">${esc(p.old)} → </td><td>${esc(p.new)}</td><td class="mut">${esc(p.suites)}</td></tr>`).join('')}</table>`:'<span class="mut">No updates.</span>'}
+  ${r.reboot?`<div class="mut">Reboot needed: ${esc((r.reboot_pkgs||[]).join(', '))}</div>`:''}${r.update_warn&&r.update_warn.length?`<div class="mut">apt: ${esc(r.update_warn.join(' | '))}</div>`:''}
+  <div class="mut">Kernel ${esc(r.kernel)} · unattended-upgrades ${r.unattended?'on':'off'}${r.eol?` · OS support until ${esc(r.eol.date)}`:''}</div></td></tr>`}
+ return html}
+function render(){if(!S)return;const H=Object.values(S.hosts),only=$('#onlyAtt').checked;
+ $('#gen').textContent=(S.collecting?'checking now… · ':'')+'last full check '+ago(S.generated)+(S.user?' · '+S.user:'');
+ const ok=H.filter(h=>h.result&&h.result.ok).map(h=>h.result),sum=k=>ok.reduce((a,r)=>a+r.counts[k],0);
+ const failed=H.filter(h=>h.result&&!h.result.ok&&!h.result.skip&&!h.stale);
+ $('#stats').innerHTML=[['Hosts checked',ok.length+' / '+H.length],['Updates',sum('total')],['Security',sum('security')],['Critical',sum('critical')],['Reboot needed',ok.filter(r=>r.reboot).length],['Check failed',failed.length]]
+  .map(([a,b])=>`<div class="stat"><small>${a}</small><b>${b}</b></div>`).join('');
+ const crit=H.filter(h=>h.result&&h.result.ok&&h.result.counts.critical),eol=H.filter(h=>h.result&&h.result.ok&&h.result.eol&&h.result.eol.status!=='ok');
+ let al=[];crit.forEach(h=>al.push(`<li><b>${esc(h.name)}</b> (${esc(h.key)} on ${esc(h.node)}): critical security updates for ${esc(h.result.packages.filter(p=>p.critical).map(p=>p.name).slice(0,8).join(', '))}</li>`));
+ eol.forEach(h=>al.push(`<li><b>${esc(h.name)}</b>: ${esc(h.result.os.pretty)} ${h.result.eol.status==='eol'?'is past end of life':'reaches end of life on '+esc(h.result.eol.date)}</li>`));
+ failed.forEach(h=>al.push(`<li><b>${esc(h.name)}</b>: check failed - ${esc(h.result.error)}</li>`));
+ $('#alerts').innerHTML=al.length?`<div class="alert"><h3>At risk</h3><ul>${al.join('')}</ul></div>`:'';
+ const nodes=[...new Set(H.filter(h=>h.kind==='node').map(h=>h.id))].sort();
+ $('#nodes').innerHTML=nodes.map(n=>{const list=H.filter(h=>h.node===n).sort((a,b)=>({node:0,ct:1,vm:2}[a.kind]-{node:0,ct:1,vm:2}[b.kind])||(+a.id-+b.id));
+  const shown=list.filter(h=>!only||attention(h)||h.kind==='node'&&list.some(attention));if(only&&!shown.length)return '';
+  const nodeH=list.find(h=>h.kind==='node');const st=nodeH&&nodeH.state!=='online'?'<span class="b mut">offline</span>':'';
+  return `<section class="node"><h2>${esc(n)} ${st}<span class="mut" style="font-weight:400;font-size:12px">${list.filter(h=>h.kind!=='node'&&!h.stale).length} running guests</span></h2>
+  <table><thead><tr><th>Host</th><th class="hide-s">OS</th><th>Status</th><th class="hide-s">Checked</th><th></th></tr></thead><tbody>${shown.map(row).join('')}</tbody></table></section>`}).join('');
+ const J=S.jobs||[];$('#jobsBox').hidden=!J.length;
+ $('#jobs').innerHTML=J.map(j=>`<tr><td>${esc(j.name)} <span class="mut">${esc(j.key)}</span></td><td><span class="b ${j.status==='done'?'ok':j.status==='failed'?'bad':'info'}">${esc(j.status)}</span></td><td class="mut hide-s">${ago(j.start)} by ${esc(j.user)}${j.snapshot?' · snapshot '+esc(j.snapshot):''}</td><td class="right"><button data-a="log" data-j="${esc(j.id)}">Log</button></td></tr>`).join('');
+ $('#checkAll').disabled=!S.admin||S.collecting}
+async function load(){try{S=await api('/api/status');render()}catch(e){$('#gen').textContent='error: '+e.message}}
+function dlg(t,b,actions,log){$('#dlgT').textContent=t;$('#dlgB').innerHTML=b||'';$('#dlgB').hidden=!b;$('#dlgLog').hidden=!log;$('#dlgA').innerHTML='';
+ (actions||[]).forEach(([l,f,c])=>{const x=document.createElement('button');x.textContent=l;if(c)x.className=c;x.onclick=f;$('#dlgA').appendChild(x)});$('#dlg').showModal()}
+$('#dlgX').onclick=()=>{clearInterval(logTimer);$('#dlg').close()};
+async function showLog(id){dlg('Upgrade log','',[],true);const f=async()=>{try{$('#dlgLog').textContent=await (await fetch(`/api/jobs/${id}/log`)).text();$('#dlgLog').scrollTop=1e9}catch(_){}};await f();clearInterval(logTimer);logTimer=setInterval(f,3000)}
+document.addEventListener('click',async e=>{const b=e.target.closest('button[data-a]');
+ if(b){e.stopPropagation();const k=b.dataset.k,h=k&&S.hosts[k];
+  if(b.dataset.a==='log')return showLog(b.dataset.j);
+  if(b.dataset.a==='check'){b.disabled=true;try{await api('/api/check',{key:k})}catch(x){alert(x.message)}setTimeout(load,1500);return}
+  if(b.dataset.a==='up'){const r=h.result,snap=h.kind==='node'?'<p><b>Proxmox node:</b> no snapshot is possible. Guests keep running; kernel updates need a reboot you do yourself.</p>':'<p>A snapshot <code>patch-…</code> is taken first (kept 7 days).</p>';
+   const go=async force=>{try{const j=await api('/api/upgrade',{key:k,force});showLog(j.job);setTimeout(load,800)}catch(x){alert(x.message)}};
+   dlg(`Upgrade ${h.name} (${h.key})?`,`<p>${r.counts.total} packages (${r.counts.security} security${r.counts.critical?', '+r.counts.critical+' critical':''}) via <code>apt full-upgrade</code>, keeping existing config files. No reboot.</p>${snap}`,
+    [['Cancel',()=>$('#dlg').close()],...(h.kind!=='node'?[['Upgrade without snapshot',()=>{if(confirm('Upgrade with no snapshot to roll back to?'))go(true)},'danger']]:[]),['Upgrade',()=>go(false),'danger']]);return}}
+ const tr=e.target.closest('tr.host');if(tr){const k=tr.dataset.k;open.has(k)?open.delete(k):open.add(k);render()}});
+$('#checkAll').onclick=async()=>{try{await api('/api/check',{});setTimeout(load,1500)}catch(x){alert(x.message)}};
+load();setInterval(load,15000);
+</script>
+</body>
+</html>

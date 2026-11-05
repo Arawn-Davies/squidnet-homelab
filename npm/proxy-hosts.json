@@ -1,0 +1,40 @@
+{
+ "access_lists": [
+  {
+   "id": 1,
+   "name": "LAN only"
+  },
+  {
+   "id": 2,
+   "name": "LAN only (strict, no VPN)"
+  },
+  {
+   "id": 3,
+   "name": "LAN only (strict, no VPN)"
+  },
+  {
+   "id": 4,
+   "name": "LAN only (strict, no VPN)"
+  },
+  {
+   "id": 5,
+   "name": "LAN only (strict, no VPN)"
+  },
+  {
+   "id": 6,
+   "name": "LAN only (strict, no VPN)"
+  },
+  {
+   "id": 7,
+   "name": "LAN only (strict, no VPN)"
+  },
+  {
+   "id": 8,
+   "name": "LAN only (strict, no VPN)"
+  },
+  {
+   "id": 9,
+   "name": "LAN only (strict, no VPN)"
+  }
+ ]
+}

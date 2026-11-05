@@ -1,0 +1,35 @@
+%YAML 1.1
+---
+af-packet:
+  - interface: eth1
+    cluster-id: 99
+    cluster-type: cluster_flow
+    defrag: yes
+    use-mmap: yes
+    tpacket-v3: yes
+default-rule-path: /var/lib/suricata/rules
+rule-files:
+  - suricata.rules
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      types:
+        - alert:
+            payload: no
+            payload-printable: no
+            packet: no
+            http-body: no
+            metadata: no
+            tagged-packets: no
+        - stats:
+            totals: yes
+            threads: no
+            deltas: no
+  - fast:
+      enabled: no
+  - stats:
+      enabled: yes
+      filename: stats.log
+      interval: 300

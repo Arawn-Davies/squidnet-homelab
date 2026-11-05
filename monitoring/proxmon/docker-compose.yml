@@ -1,0 +1,243 @@
+# proxmon — SELF-CONTAINED stack for Portainer's web editor (copy/paste).
+#
+# Unlike compose.prod.yml (which bind-mounts config files and is meant for a
+# Git-based deploy), this version inlines every config file via Compose
+# `configs`, so it works pasted straight into the Portainer stack editor with
+# no repo checkout. Requires Docker Compose v2.23+ (any current Portainer).
+#
+# After pasting, add the environment variables (Advanced mode lets you paste the
+# whole KEY=value block from your .env.monitoring).
+name: proxmon
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
+    configs:
+      - source: prometheus_config_v4
+        target: /etc/prometheus/prometheus.yml
+    volumes:
+      - prometheus_data:/prometheus
+    ports:
+      # 9091 avoids clashing with another Prometheus on the same host.
+      - "127.0.0.1:9091:9090"
+    networks: [monitoring]
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    restart: unless-stopped
+    depends_on: [prometheus]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD}
+      GF_SERVER_ROOT_URL: ${GF_SERVER_ROOT_URL:-}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    configs:
+      - source: grafana_datasource
+        target: /etc/grafana/provisioning/datasources/datasource.yml
+      - source: grafana_dashprovider
+        target: /etc/grafana/provisioning/dashboards/dashboards.yml
+      - source: grafana_overview
+        target: /var/lib/grafana/dashboards/proxmox-cluster-overview.json
+      - source: grafana_switch
+        target: /var/lib/grafana/dashboards-network/core-switch.json
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      # Published on the LAN so your existing homelab cloudflared can reach it
+      # at http://<this-host-LAN-IP>:${GRAFANA_PORT}. Defaults to 4000 to avoid
+      # another Grafana on 3000. If cloudflared runs on this same host,
+      # tighten to "127.0.0.1:${GRAFANA_PORT:-4000}:3000".
+      - "${GRAFANA_PORT:-4000}:3000"
+    networks: [monitoring]
+
+  pve-exporter:
+    image: prompve/prometheus-pve-exporter:3.4.4   # check Docker Hub for newer
+    restart: unless-stopped
+    environment:
+      PVE_USER: ${PVE_EXPORTER_USER}
+      PVE_TOKEN_NAME: ${PVE_EXPORTER_TOKEN_NAME}
+      PVE_TOKEN_VALUE: ${PVE_EXPORTER_TOKEN_VALUE}
+      PVE_VERIFY_SSL: ${PVE_VERIFY_SSL:-false}
+    networks: [monitoring]
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    restart: unless-stopped
+    command: [--path.rootfs=/host]
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    networks: [monitoring]
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    restart: unless-stopped
+    privileged: true
+    devices: [/dev/kmsg]
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks: [monitoring]
+
+  snmp-exporter:
+    image: prom/snmp-exporter:v0.28.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/snmp_exporter/snmp.yml   # bundled modules (if_mib, system)
+      - --config.file=/etc/snmp_exporter/auth.yml   # switch_v3 credentials
+    configs:
+      - source: snmp_auth
+        target: /etc/snmp_exporter/auth.yml
+    networks: [monitoring]
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  monitoring:
+    driver: bridge
+
+configs:
+  prometheus_config_v4:
+    content: |
+      global:
+        scrape_interval: 15s
+        scrape_timeout: 10s
+      scrape_configs:
+        - job_name: prometheus
+          static_configs:
+            - targets: ["localhost:9090"]
+        - job_name: node
+          static_configs:
+            - targets: ["node-exporter:9100"]
+        - job_name: cadvisor
+          static_configs:
+            - targets: ["cadvisor:8080"]
+        - job_name: pve-nodes
+          static_configs:
+            - targets: ["10.0.0.10:9100", "10.0.0.40:9100", "10.0.0.50:9100", "10.0.0.20:9100", "10.0.0.80:9100"]
+              labels:
+                group: proxmox
+        - job_name: pve
+          metrics_path: /pve
+          params:
+            module: [default]
+          static_configs:
+            - targets: ["10.0.0.10"]
+          relabel_configs:
+            - source_labels: [__address__]
+              target_label: __param_target
+            - source_labels: [__param_target]
+              target_label: instance
+            - target_label: __address__
+              replacement: "pve-exporter:9221"
+        - job_name: snmp-switch
+          scrape_interval: 30s
+          scrape_timeout: 20s
+          metrics_path: /snmp
+          params:
+            auth: [switch_v3]
+            module: [if_mib, system]
+          static_configs:
+            - targets: ["10.0.0.15"]
+              labels:
+                device: core-switch
+          relabel_configs:
+            - source_labels: [__address__]
+              target_label: __param_target
+            - source_labels: [__param_target]
+              target_label: instance
+            - target_label: __address__
+              replacement: "snmp-exporter:9116"
+
+        - job_name: openwrt
+          scrape_interval: 30s
+          static_configs:
+            - targets: ["10.0.0.1:9100"]
+              labels:
+          relabel_configs:
+            - target_label: instance
+              replacement: "router.lab.example.co.uk"
+
+        - job_name: crowdsec
+          scrape_interval: 30s
+          static_configs:
+            - targets: ["10.0.0.165:6060"]
+          relabel_configs:
+            - target_label: instance
+              replacement: "flareon"
+
+        - job_name: squidpatch
+          scrape_interval: 5m
+          static_configs:
+            - targets: ["10.0.0.50:8780"]
+
+  grafana_datasource:
+    content: |
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          uid: prometheus
+          access: proxy
+          url: http://prometheus:9090
+          isDefault: true
+          editable: false
+          jsonData:
+            timeInterval: 15s
+
+  grafana_dashprovider:
+    content: |
+      apiVersion: 1
+      providers:
+        - name: Proxmox dashboards
+          orgId: 1
+          folder: Proxmox
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 30
+          allowUiUpdates: true
+          options:
+            path: /var/lib/grafana/dashboards
+            foldersFromFilesStructure: false
+        - name: Network dashboards
+          orgId: 1
+          folder: Network
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 30
+          allowUiUpdates: true
+          options:
+            path: /var/lib/grafana/dashboards-network
+            foldersFromFilesStructure: false
+
+  grafana_overview:
+    content: |
+      {"uid":"proxmox-cluster-overview","title":"Proxmox Cluster Overview","tags":["proxmox","homelab"],"timezone":"browser","schemaVersion":39,"version":1,"editable":true,"refresh":"30s","time":{"from":"now-6h","to":"now"},"templating":{"list":[]},"annotations":{"list":[]},"panels":[{"type":"stat","title":"Nodes up","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":4,"w":6,"x":0,"y":0},"fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"green","value":1}]},"unit":"none"},"overrides":[]},"options":{"colorMode":"value","graphMode":"none","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"count(pve_up{id=~\"node/.*\"} == 1)","instant":true}]},{"type":"stat","title":"VMs running","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":4,"w":6,"x":6,"y":0},"fieldConfig":{"defaults":{"color":{"mode":"fixed","fixedColor":"green"},"unit":"none"},"overrides":[]},"options":{"colorMode":"value","graphMode":"none","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"count(pve_up{id=~\"qemu/.*\"} == 1)","instant":true}]},{"type":"stat","title":"LXCs running","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":4,"w":6,"x":12,"y":0},"fieldConfig":{"defaults":{"color":{"mode":"fixed","fixedColor":"green"},"unit":"none"},"overrides":[]},"options":{"colorMode":"value","graphMode":"none","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"count(pve_up{id=~\"lxc/.*\"} == 1)","instant":true}]},{"type":"stat","title":"Guests stopped","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":4,"w":6,"x":18,"y":0},"fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":1}]},"unit":"none"},"overrides":[]},"options":{"colorMode":"value","graphMode":"none","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"count(pve_up{id=~\"(qemu|lxc)/.*\"} == 0) or vector(0)","instant":true}]},{"type":"timeseries","title":"Node CPU usage","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":8,"w":12,"x":0,"y":4},"fieldConfig":{"defaults":{"unit":"percent","min":0,"max":100,"custom":{"drawStyle":"line","fillOpacity":10,"showPoints":"never","lineWidth":1}},"overrides":[]},"options":{"legend":{"displayMode":"table","placement":"bottom","calcs":["lastNotNull","max"]},"tooltip":{"mode":"multi","sort":"desc"}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"pve_cpu_usage_ratio{id=~\"node/.*\"} * 100","legendFormat":"{{id}}"}]},{"type":"timeseries","title":"Node memory usage","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":8,"w":12,"x":12,"y":4},"fieldConfig":{"defaults":{"unit":"percent","min":0,"max":100,"custom":{"drawStyle":"line","fillOpacity":10,"showPoints":"never","lineWidth":1}},"overrides":[]},"options":{"legend":{"displayMode":"table","placement":"bottom","calcs":["lastNotNull","max"]},"tooltip":{"mode":"multi","sort":"desc"}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"pve_memory_usage_bytes{id=~\"node/.*\"} / pve_memory_size_bytes{id=~\"node/.*\"} * 100","legendFormat":"{{id}}"}]},{"type":"bargauge","title":"Storage usage","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":8,"w":24,"x":0,"y":12},"fieldConfig":{"defaults":{"unit":"percent","min":0,"max":100,"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":75},{"color":"red","value":90}]}},"overrides":[]},"options":{"displayMode":"gradient","orientation":"horizontal","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"showUnfilled":true},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"pve_disk_usage_bytes{id=~\"storage/.*\"} / pve_disk_size_bytes{id=~\"storage/.*\"} * 100 > 0","legendFormat":"{{id}}","instant":true}]}]}
+
+  grafana_switch:
+    content: |
+      {"uid":"core-switch","title":"Core Switch","tags":["network","snmp","homelab"],"timezone":"browser","schemaVersion":39,"version":1,"editable":true,"refresh":"30s","time":{"from":"now-6h","to":"now"},"templating":{"list":[]},"annotations":{"list":[]},"panels":[{"type":"stat","title":"Switch reachable","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":4,"w":4,"x":0,"y":0},"fieldConfig":{"defaults":{"unit":"none","color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"green","value":1}]},"mappings":[{"type":"value","options":{"0":{"text":"DOWN","index":0},"1":{"text":"UP","index":1}}}]},"overrides":[]},"options":{"colorMode":"value","graphMode":"none","textMode":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"up{job=\"snmp-switch\"}","instant":true}]},{"type":"stat","title":"Uptime","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":4,"w":4,"x":4,"y":0},"fieldConfig":{"defaults":{"unit":"s","color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"mappings":[]},"overrides":[]},"options":{"colorMode":"value","graphMode":"none","textMode":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"sysUpTime{job=\"snmp-switch\"} / 100","instant":true}]},{"type":"stat","title":"Ports up","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":4,"w":4,"x":8,"y":0},"fieldConfig":{"defaults":{"unit":"none","color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"mappings":[]},"overrides":[]},"options":{"colorMode":"value","graphMode":"none","textMode":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"count(ifOperStatus{job=\"snmp-switch\",ifName=~\"0/.*\"} == 1)","instant":true}]},{"type":"stat","title":"Total ingress","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":4,"w":4,"x":12,"y":0},"fieldConfig":{"defaults":{"unit":"bps","color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"mappings":[]},"overrides":[]},"options":{"colorMode":"value","graphMode":"none","textMode":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"sum(rate(ifHCInOctets{job=\"snmp-switch\",ifName=~\"0/.*\"}[2m])) * 8","instant":true}]},{"type":"stat","title":"Total egress","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":4,"w":4,"x":16,"y":0},"fieldConfig":{"defaults":{"unit":"bps","color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"mappings":[]},"overrides":[]},"options":{"colorMode":"value","graphMode":"none","textMode":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"sum(rate(ifHCOutOctets{job=\"snmp-switch\",ifName=~\"0/.*\"}[2m])) * 8","instant":true}]},{"type":"stat","title":"Errors + discards /s","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":4,"w":4,"x":20,"y":0},"fieldConfig":{"defaults":{"unit":"pps","color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"orange","value":0.01},{"color":"red","value":1}]},"mappings":[]},"overrides":[]},"options":{"colorMode":"value","graphMode":"none","textMode":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"sum(rate(ifInErrors{job=\"snmp-switch\",ifName=~\"0/.*\"}[2m]) + rate(ifOutErrors{job=\"snmp-switch\",ifName=~\"0/.*\"}[2m]) + rate(ifInDiscards{job=\"snmp-switch\",ifName=~\"0/.*\"}[2m]) + rate(ifOutDiscards{job=\"snmp-switch\",ifName=~\"0/.*\"}[2m]))","instant":true}]},{"type":"timeseries","title":"Ingress per port (active ports)","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":9,"w":12,"x":0,"y":4},"fieldConfig":{"defaults":{"unit":"bps","min":0,"custom":{"drawStyle":"line","lineWidth":1,"fillOpacity":10,"showPoints":"never","stacking":{"mode":"none","group":"A"}}},"overrides":[]},"options":{"legend":{"displayMode":"table","placement":"right","calcs":["lastNotNull","mean","max"],"sortBy":"Max","sortDesc":true},"tooltip":{"mode":"multi","sort":"desc"}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"rate(ifHCInOctets{job=\"snmp-switch\",ifName=~\"0/.*\"}[2m]) * 8 and on(ifIndex) ifOperStatus{job=\"snmp-switch\",ifName=~\"0/.*\"} == 1","legendFormat":"{{ifName}}"}]},{"type":"timeseries","title":"Egress per port (active ports)","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":9,"w":12,"x":12,"y":4},"fieldConfig":{"defaults":{"unit":"bps","min":0,"custom":{"drawStyle":"line","lineWidth":1,"fillOpacity":10,"showPoints":"never","stacking":{"mode":"none","group":"A"}}},"overrides":[]},"options":{"legend":{"displayMode":"table","placement":"right","calcs":["lastNotNull","mean","max"],"sortBy":"Max","sortDesc":true},"tooltip":{"mode":"multi","sort":"desc"}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"rate(ifHCOutOctets{job=\"snmp-switch\",ifName=~\"0/.*\"}[2m]) * 8 and on(ifIndex) ifOperStatus{job=\"snmp-switch\",ifName=~\"0/.*\"} == 1","legendFormat":"{{ifName}}"}]},{"type":"timeseries","title":"Utilisation % of link speed (max of in/out)","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":9,"w":12,"x":0,"y":13},"fieldConfig":{"defaults":{"unit":"percent","min":0,"custom":{"drawStyle":"line","lineWidth":1,"fillOpacity":10,"showPoints":"never","stacking":{"mode":"none","group":"A"}}},"overrides":[]},"options":{"legend":{"displayMode":"table","placement":"right","calcs":["lastNotNull","mean","max"],"sortBy":"Max","sortDesc":true},"tooltip":{"mode":"multi","sort":"desc"}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"100 * max by (ifName) (rate(ifHCInOctets{job=\"snmp-switch\",ifName=~\"0/.*\"}[2m]) or rate(ifHCOutOctets{job=\"snmp-switch\",ifName=~\"0/.*\"}[2m])) * 8 / on(ifName) (max by (ifName) (ifHighSpeed{job=\"snmp-switch\",ifName=~\"0/.*\"}) * 1e6 > 0)","legendFormat":"{{ifName}}"}]},{"type":"timeseries","title":"Errors & discards per port","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":9,"w":12,"x":12,"y":13},"fieldConfig":{"defaults":{"unit":"pps","min":0,"custom":{"drawStyle":"line","lineWidth":1,"fillOpacity":10,"showPoints":"never","stacking":{"mode":"none","group":"A"}}},"overrides":[]},"options":{"legend":{"displayMode":"table","placement":"right","calcs":["lastNotNull","mean","max"],"sortBy":"Max","sortDesc":true},"tooltip":{"mode":"multi","sort":"desc"}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"rate(ifInErrors{job=\"snmp-switch\",ifName=~\"0/.*\"}[2m]) > 0","legendFormat":"{{ifName}} in-err"},{"refId":"B","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"rate(ifOutErrors{job=\"snmp-switch\",ifName=~\"0/.*\"}[2m]) > 0","legendFormat":"{{ifName}} out-err"},{"refId":"C","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"rate(ifInDiscards{job=\"snmp-switch\",ifName=~\"0/.*\"}[2m]) > 0","legendFormat":"{{ifName}} in-disc"},{"refId":"D","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"rate(ifOutDiscards{job=\"snmp-switch\",ifName=~\"0/.*\"}[2m]) > 0","legendFormat":"{{ifName}} out-disc"}]},{"type":"timeseries","title":"Broadcast + multicast ingress per port","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":9,"w":12,"x":0,"y":22},"fieldConfig":{"defaults":{"unit":"pps","min":0,"custom":{"drawStyle":"line","lineWidth":1,"fillOpacity":10,"showPoints":"never","stacking":{"mode":"none","group":"A"}}},"overrides":[]},"options":{"legend":{"displayMode":"table","placement":"right","calcs":["lastNotNull","mean","max"],"sortBy":"Max","sortDesc":true},"tooltip":{"mode":"multi","sort":"desc"}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"(rate(ifHCInBroadcastPkts{job=\"snmp-switch\",ifName=~\"0/.*\"}[2m]) + rate(ifHCInMulticastPkts{job=\"snmp-switch\",ifName=~\"0/.*\"}[2m])) and on(ifIndex) ifOperStatus{job=\"snmp-switch\",ifName=~\"0/.*\"} == 1","legendFormat":"{{ifName}}"}]},{"type":"state-timeline","title":"Port link state","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":9,"w":12,"x":12,"y":22},"fieldConfig":{"defaults":{"mappings":[{"type":"value","options":{"1":{"text":"UP","color":"green","index":0},"2":{"text":"down","color":"#555555","index":1},"7":{"text":"lowerLayerDown","color":"orange","index":2}}}],"color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"#555555","value":null}]},"custom":{"fillOpacity":80,"lineWidth":0}},"overrides":[]},"options":{"showValue":"never","rowHeight":0.85,"mergeValues":true,"alignValue":"left","legend":{"showLegend":false},"tooltip":{"mode":"single"}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"ifOperStatus{job=\"snmp-switch\",ifName=~\"0/.*\"}","legendFormat":"{{ifName}}"}]},{"type":"table","title":"Ports","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":12,"w":24,"x":0,"y":31},"fieldConfig":{"defaults":{"mappings":[{"type":"value","options":{"1":{"text":"UP","color":"green","index":0},"2":{"text":"down","color":"#555555","index":1},"7":{"text":"lowerLayerDown","color":"orange","index":2}}}]},"overrides":[{"matcher":{"id":"byName","options":"Speed"},"properties":[{"id":"unit","value":"Mbits"},{"id":"mappings","value":[]}]},{"matcher":{"id":"byName","options":"Status"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background"}}]}]},"options":{"showHeader":true,"sortBy":[{"displayName":"ifIndex","desc":false}]},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"ifOperStatus{job=\"snmp-switch\",ifName=~\"0/.*\"}","instant":true,"format":"table"},{"refId":"B","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"ifHighSpeed{job=\"snmp-switch\",ifName=~\"0/.*\"}","instant":true,"format":"table"}],"transformations":[{"id":"merge","options":{}},{"id":"organize","options":{"excludeByName":{"Time":true,"__name__":true,"job":true,"instance":true,"device":true,"ifAlias":true},"renameByName":{"Value #A":"Status","Value #B":"Speed","ifName":"Port","ifDescr":"Description"},"indexByName":{"ifIndex":0,"ifName":1,"Value #A":2,"Value #B":3,"ifDescr":4}}},{"id":"convertFieldType","options":{"conversions":[{"targetField":"ifIndex","destinationType":"number"}]}}]},{"type":"timeseries","title":"SNMP scrape duration","datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":6,"w":24,"x":0,"y":43},"fieldConfig":{"defaults":{"unit":"s","min":0,"custom":{"drawStyle":"line","lineWidth":1,"fillOpacity":10,"showPoints":"never","stacking":{"mode":"none","group":"A"}}},"overrides":[]},"options":{"legend":{"displayMode":"table","placement":"right","calcs":["lastNotNull","mean","max"],"sortBy":"Max","sortDesc":true},"tooltip":{"mode":"multi","sort":"desc"}},"targets":[{"refId":"A","datasource":{"type":"prometheus","uid":"prometheus"},"expr":"scrape_duration_seconds{job=\"snmp-switch\"}","legendFormat":"scrape"}]}]}
+
+  snmp_auth:
+    content: |
+      auths:
+        switch_v3:
+          version: 3
+          username: ${SNMP_V3_USER}
+          security_level: authPriv
+          auth_protocol: SHA
+          password: ${SNMP_V3_AUTH_PASSWORD}
+          priv_protocol: DES
+          priv_password: ${SNMP_V3_PRIV_PASSWORD}

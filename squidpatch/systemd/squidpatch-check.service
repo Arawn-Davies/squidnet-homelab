@@ -1,0 +1,5 @@
+[Unit]
+Description=squidpatch: trigger a full package check
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/curl -sf -X POST -H "X-Squidpatch: 1" -H "Content-Type: application/json" -d "{}" http://127.0.0.1:8780/api/check

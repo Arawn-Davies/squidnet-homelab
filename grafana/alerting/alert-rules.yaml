@@ -1,0 +1,155 @@
+apiVersion: 1
+groups:
+    - orgId: 1
+      name: squidpatch
+      folder: Security
+      interval: 1m
+      rules:
+        - uid: sp-critical
+          title: Critical security updates pending
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 900
+                to: 0
+              datasourceUid: prometheus
+              model:
+                expr: max by (host,node) (squidpatch_critical_updates)
+                instant: true
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: OK
+          execErrState: Error
+          for: 6h
+          annotations:
+            runbook_url: https://patch.lab.example.co.uk
+            summary: '{{ $labels.host }} on {{ $labels.node }} has {{ $values.A }} critical security updates'
+          labels:
+            source: squidpatch
+          isPaused: false
+        - uid: sp-checkfail
+          title: Package check failing
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 900
+                to: 0
+              datasourceUid: prometheus
+              model:
+                expr: min by (host,node) (squidpatch_check_ok)
+                instant: true
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 1
+                        type: lt
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: OK
+          execErrState: Error
+          for: 1h
+          annotations:
+            runbook_url: https://patch.lab.example.co.uk
+            summary: squidpatch can't check {{ $labels.host }} ({{ $labels.node }})
+          labels:
+            source: squidpatch
+          isPaused: false
+        - uid: sp-stale
+          title: Package data stale
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 900
+                to: 0
+              datasourceUid: prometheus
+              model:
+                expr: time() - max(squidpatch_generated_timestamp)
+                instant: true
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 50400
+                        type: gt
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: OK
+          execErrState: Error
+          for: 30m
+          annotations:
+            runbook_url: https://patch.lab.example.co.uk
+            summary: squidpatch hasn't completed a check in over 14 h
+          labels:
+            source: squidpatch
+          isPaused: false
+        - uid: sp-eol
+          title: OS end of life within 90 days
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 900
+                to: 0
+              datasourceUid: prometheus
+              model:
+                expr: min by (host,node) (squidpatch_os_eol_days)
+                instant: true
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 90
+                        type: lt
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: OK
+          execErrState: Error
+          for: 1h
+          annotations:
+            runbook_url: https://patch.lab.example.co.uk
+            summary: '{{ $labels.host }}: OS support ends in {{ $values.A }} days'
+          labels:
+            source: squidpatch
+          isPaused: false

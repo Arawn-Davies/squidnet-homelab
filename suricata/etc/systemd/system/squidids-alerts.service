@@ -1,0 +1,9 @@
+[Unit]
+Description=Forward high-severity Suricata alerts to ntfy (squidnet-ids)
+After=suricata.service network-online.target
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/bin/squidids-alerts.py
+Restart=always
+RestartSec=10
+[Install]
+WantedBy=multi-user.target

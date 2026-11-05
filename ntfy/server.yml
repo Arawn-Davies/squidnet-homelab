@@ -1,0 +1,13 @@
+# squidntfy (CT137) - 2026-11-05
+base-url: "https://ntfy.example.co.uk"
+listen-http: ":2586"
+behind-proxy: true
+proxy-forwarded-header: "X-Forwarded-For"
+cache-file: "/var/cache/ntfy/cache.db"
+cache-duration: "72h"
+auth-file: "/var/lib/ntfy/user.db"
+auth-default-access: "deny-all"
+enable-signup: false
+enable-login: true
+enable-reservations: false
+log-level: "info"

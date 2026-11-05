@@ -1,0 +1,21 @@
+apiVersion: 1
+contactPoints:
+    - orgId: 1
+      name: email receiver
+      receivers:
+        - uid: ""
+          type: email
+          settings:
+            addresses: you@example.com
+          disableResolveMessage: false
+    - orgId: 1
+      name: ntfy
+      receivers:
+        - uid: ntfy-squidnet
+          type: webhook
+          settings:
+            authorization_credentials: ${NTFY_PUBLISH_TOKEN}
+            authorization_scheme: Bearer
+            httpMethod: POST
+            url: http://10.0.0.205:2586/squidnet-alerts?template=grafana
+          disableResolveMessage: false

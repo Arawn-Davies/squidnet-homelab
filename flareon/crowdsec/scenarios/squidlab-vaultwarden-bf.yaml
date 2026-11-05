@@ -1,0 +1,16 @@
+type: leaky
+name: squidlab/vaultwarden-bf
+description: "Vaultwarden failed logins via the tunnel proxy (400 on /identity/connect/token)"
+filter: "evt.Meta.log_type == 'http_access-log' && evt.Meta.http_verb == 'POST' && evt.Meta.http_status == '400' && Lower(evt.Meta.http_path) contains '/identity/connect/token'"
+groupby: evt.Meta.source_ip
+capacity: 4
+leakspeed: 1m
+blackhole: 5m
+labels:
+  service: vaultwarden
+  type: bruteforce
+  confidence: 3
+  spoofable: 0
+  behavior: "http:bruteforce"
+  label: "Vaultwarden login brute force"
+  remediation: true

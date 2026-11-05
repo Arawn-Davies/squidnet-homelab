@@ -1,0 +1,53 @@
+# Homepage stack on squidnode02 (LXC 104, 10.0.0.25). Deployed with `docker compose` from /root/stacks/homelab.
+# LAN start page, published as https://lab.example.co.uk (alias home.lab.example.co.uk) via NPM (.95), "LAN only" access list.
+#
+# Since 2026-11-04 (P5 inventory):
+#   - config/ is a bind mount. services.yaml and settings.yaml are GENERATED every 5 min by
+#     inventory/gen.py (systemd: homepage-inventory.timer). Edit inventory/static_services.json for the
+#     Home tab, inventory/links.json / names.json for URLs and device names - not config/services.yaml.
+#   - Read-only access only: Proxmox token homepage@pve!inventory (PVEAuditor), Docker socket proxies
+#     with POST=0, Pi-hole app password (root-only file). Secrets live in inventory/secrets and
+#     config/proxmox.yaml, never in this file.
+#   - NetAlertX ARP-scans the whole 10.0.0.0/16 every 15 min (host network).
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:v2.7.0
+    restart: unless-stopped
+    ports:
+      - "3080:3000"
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: lab.example.co.uk,home.lab.example.co.uk,10.0.0.25:3080
+      PUID: 1000
+      PGID: 1000
+    volumes:
+      - ./config:/app/config
+    depends_on: [dockerproxy]
+
+  # Read-only Docker API for Homepage (container status) and the generator (container list).
+  dockerproxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      POST: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "127.0.0.1:2375:2375"     # for inventory/gen.py on the CT itself; Homepage uses the compose network
+
+  netalertx:
+    image: ghcr.io/netalertx/netalertx:26.10.24
+    container_name: netalertx
+    restart: unless-stopped
+    network_mode: host
+    cap_add: [NET_RAW, NET_ADMIN, NET_BIND_SERVICE]
+    volumes:
+      - ./netalertx:/data
+      - /etc/localtime:/etc/localtime:ro
+    tmpfs:
+      - /tmp:uid=20211,gid=20211,mode=1700
+    environment:
+      PORT: "20211"
+      LISTEN_ADDR: "10.0.0.25"
+      # Whole LAN /16. Sweep every 15 min, 2 retries at ~1000 pps (about 2 min per sweep), 10 min timeout.
+      APP_CONF_OVERRIDE: '{"GRAPHQL_PORT":"20212","SCAN_SUBNETS":"[''10.0.0.0/16 --interface=eth0'']","ARPSCAN_RUN_SCHD":"*/15 * * * *","ARPSCAN_RUN_TIMEOUT":"600","ARPSCAN_ARGS":"sudo arp-scan --ignoredups --retry=2 --bandwidth=512000","TIMEZONE":"Europe/London"}'
