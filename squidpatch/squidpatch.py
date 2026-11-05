@@ -170,7 +170,7 @@ def prune_snapshots(inv):
             rc, out, _ = run_on(it["node"], f"{tool} listsnapshot {int(it['id'])}", timeout=60)
         except Exception:
             continue
-        for m in re.finditer(rf"({SNAP_PREFIX}(\d{{8}})-(\d{{4}}))", out):
+        for m in re.finditer(rf"({SNAP_PREFIX}(\d{{8}})-(\d{{4}})(\d{{2}})?)\b", out):
             when = datetime.datetime.strptime(m.group(2) + m.group(3), "%Y%m%d%H%M")
             if when < cutoff:
                 run_on(it["node"], f"{tool} delsnapshot {int(it['id'])} {m.group(1)}", timeout=300)
@@ -179,11 +179,11 @@ def prune_snapshots(inv):
     for node in sorted({i["node"] for i in inv if i["kind"] == "node" and i["state"] == "online"}):
         try:
             _, out, _ = run_on(node, "zfs list -H -t snapshot -o name 2>/dev/null | grep '@patch-'; "
-                                     "lvs --noheadings -o vg_name,lv_name 2>/dev/null | awk '$2 ~ /-patch-[0-9]{8}-[0-9]{4}$/{print $1\"/\"$2}'", timeout=60)
+                                     "lvs --noheadings -o vg_name,lv_name 2>/dev/null | awk '$2 ~ /-patch-[0-9]{8}-[0-9]{4}([0-9]{2})?$/{print $1\"/\"$2}'", timeout=60)
         except Exception:
             continue
         for name in out.split():
-            m = re.search(r"patch-(\d{8})-(\d{4})$", name)
+            m = re.search(r"patch-(\d{8})-(\d{4})(\d{2})?$", name)
             if not m or not SAFE_NAME.match(name): continue
             if datetime.datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M") >= cutoff: continue
             run_on(node, f"zfs destroy {name}" if "@" in name else f"lvremove -y {name}", timeout=300)
@@ -235,7 +235,7 @@ def run_job(jid, item, force):
         job_log(jid, f"== {key} ({item['name']}) on {node} - started {time.strftime('%F %T')} by {j['user']}")
         if item["kind"] in ("ct", "vm"):
             tool = "pct" if item["kind"] == "ct" else "qm"
-            snap = f"{SNAP_PREFIX}{time.strftime('%Y%m%d-%H%M')}"
+            snap = f"{SNAP_PREFIX}{time.strftime('%Y%m%d-%H%M%S')}"   # seconds: CTs can share a volume (e.g. a disk mounted in two CTs)
             job_log(jid, f"-- snapshot {snap}")
             rc, out, err = run_on(node, f"{tool} snapshot {int(item['id'])} {snap} --description 'squidpatch pre-upgrade'", timeout=900)
             job_log(jid, (out + err).strip() or "ok")

@@ -67,8 +67,9 @@ function badges(h){const r=h.result;if(h.stale&&!r)return '<span class="b mut">s
  let o=[];const c=r.counts;
  if(c.critical)o.push(`<span class="b crit">${c.critical} critical</span>`);
  if(c.security)o.push(`<span class="b bad">${c.security} security</span>`);
- if(c.total-c.security)o.push(`<span class="b warn">${c.total-c.security} updates</span>`);
- if(!c.total)o.push('<span class="b ok">up to date</span>');
+ const kept=c.kept||0, other=Math.max(0,c.total-c.security-kept);
+ if(other)o.push(`<span class="b warn">${other} updates</span>`);
+ if(c.total-kept<=0)o.push('<span class="b ok">up to date</span>');
  if(c.kept)o.push(`<span class="b mut" title="phased/kept back">${c.kept} held</span>`);
  if(r.reboot)o.push('<span class="b info">reboot needed</span>');
  if(r.eol&&r.eol.status==='eol')o.push(`<span class="b crit">OS end-of-life</span>`);else if(r.eol&&r.eol.status==='soon')o.push(`<span class="b warn">EOL in ${r.eol.days} d</span>`);
@@ -76,7 +77,7 @@ function badges(h){const r=h.result;if(h.stale&&!r)return '<span class="b mut">s
  if(h.stale)o.push('<span class="b mut">stopped (last known)</span>');
  return o.join(' ')}
 function row(h){const r=h.result||{},busy=(S.jobs||[]).some(j=>j.key===h.key&&['queued','running'].includes(j.status));
- const can=S.admin&&r.ok&&!h.stale&&r.counts.total>0&&!busy;
+ const can=S.admin&&r.ok&&!h.stale&&(r.counts.total-(r.counts.kept||0))>0&&!busy;
  const os=r.os?esc(r.os.pretty):'';const plat=r.platform?`<div class="mut">${esc(r.platform)}</div>`:'';
  let html=`<tr class="host" data-k="${esc(h.key)}"><td class="nowrap"><span class="kind">${h.kind==='node'?'NODE':h.kind.toUpperCase()+' '+esc(h.id)}</span>${esc(h.name)}</td>
  <td class="hide-s">${os}${plat}</td><td>${badges(h)}</td><td class="mut nowrap hide-s">${ago(h.checked)}</td>
