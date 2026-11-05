@@ -175,6 +175,52 @@ def prune_snapshots(inv):
             if when < cutoff:
                 run_on(it["node"], f"{tool} delsnapshot {int(it['id'])} {m.group(1)}", timeout=300)
 
+    # rootfs-only fallback snapshots (CTs with bind mounts): ZFS datasets and LVM-thin LVs named *patch-YYYYmmdd-HHMM
+    for node in sorted({i["node"] for i in inv if i["kind"] == "node" and i["state"] == "online"}):
+        try:
+            _, out, _ = run_on(node, "zfs list -H -t snapshot -o name 2>/dev/null | grep '@patch-'; "
+                                     "lvs --noheadings -o vg_name,lv_name 2>/dev/null | awk '$2 ~ /-patch-[0-9]{8}-[0-9]{4}$/{print $1\"/\"$2}'", timeout=60)
+        except Exception:
+            continue
+        for name in out.split():
+            m = re.search(r"patch-(\d{8})-(\d{4})$", name)
+            if not m or not SAFE_NAME.match(name): continue
+            if datetime.datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M") >= cutoff: continue
+            run_on(node, f"zfs destroy {name}" if "@" in name else f"lvremove -y {name}", timeout=300)
+
+SAFE_NAME = re.compile(r"^[A-Za-z0-9._/@-]+$")
+
+def storage_info():
+    """Parse /etc/pve/storage.cfg into {storage_id: {type, pool, vgname, ...}}."""
+    info, cur = {}, None
+    for line in open("/etc/pve/storage.cfg"):
+        m = re.match(r"^(\w+):\s*(\S+)", line)
+        if m: cur = m.group(2); info[cur] = {"type": m.group(1)}; continue
+        m = re.match(r"^\s+(\S+)\s+(.*)$", line)
+        if m and cur: info[cur][m.group(1)] = m.group(2).strip()
+    return info
+
+def rootfs_snapshot(node, ctid, snap):
+    """Storage-level snapshot of a CT's root disk only (used when pct snapshot refuses, e.g. bind mounts).
+    Returns (ok, message, rollback_command)."""
+    rc, out, _ = run_on(node, f"pct config {int(ctid)}", timeout=60)
+    m = re.search(r"^rootfs:\s*([^:,\s]+):([^,\s]+)", out, re.M)
+    if not m: return False, "can't read rootfs", None
+    sid, vol = m.group(1), m.group(2)
+    st = storage_info().get(sid, {})
+    run_on(node, f"pct exec {int(ctid)} -- sync </dev/null", timeout=120)
+    if st.get("type") == "zfspool" and st.get("pool"):
+        ds = f"{st['pool']}/{vol}"
+        if not SAFE_NAME.match(ds): return False, "unexpected dataset name", None
+        rc, o, e = run_on(node, f"zfs snapshot {ds}@{snap}", timeout=300)
+        return rc == 0, (o + e).strip() or f"zfs snapshot {ds}@{snap}", f"pct stop {int(ctid)} && zfs rollback -r {ds}@{snap} && pct start {int(ctid)}"
+    if st.get("type") == "lvmthin" and st.get("vgname"):
+        lv = f"{vol}-{snap}"
+        if not SAFE_NAME.match(st["vgname"] + lv): return False, "unexpected LV name", None
+        rc, o, e = run_on(node, f"lvcreate -s -n {lv} {st['vgname']}/{vol}", timeout=300)
+        return rc == 0, (o + e).strip(), f"pct stop {int(ctid)} && lvconvert --merge {st['vgname']}/{lv} && pct start {int(ctid)}"
+    return False, f"storage '{sid}' ({st.get('type','?')}) has no snapshot support", None
+
 # ---------------- upgrade jobs ----------------
 def job_log(jid, msg):
     with open(f"{JOBDIR}/{jid}.log", "a") as f: f.write(msg if msg.endswith("\n") else msg + "\n")
@@ -193,6 +239,14 @@ def run_job(jid, item, force):
             job_log(jid, f"-- snapshot {snap}")
             rc, out, err = run_on(node, f"{tool} snapshot {int(item['id'])} {snap} --description 'squidpatch pre-upgrade'", timeout=900)
             job_log(jid, (out + err).strip() or "ok")
+            if rc != 0 and item["kind"] == "ct" and "snapshot feature is not available" in (out + err):
+                job_log(jid, "-- Proxmox can't snapshot this CT (bind mounts / storage). Taking a rootfs-only storage snapshot instead;")
+                job_log(jid, "   bind-mounted data is not included (apt never touches it).")
+                ok, msg, rb = rootfs_snapshot(node, item["id"], snap)
+                job_log(jid, msg or "ok")
+                if ok:
+                    rc = 0; out = err = ""
+                    job_log(jid, f"   to roll back: {rb}")
             if rc != 0:
                 if not force:
                     j.update(status="failed", end=now()); job_log(jid, f"snapshot failed ({(err or out).strip()[:200]}) - NOT upgrading. Fix that, or use 'upgrade without snapshot' if you accept the risk."); return
