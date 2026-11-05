@@ -228,6 +228,18 @@ def main():
                         else:
                             svc.pop("widget")
 
+    try:                                     # live Proxmox node widgets; token/secret read from config/proxmox.yaml at runtime
+        pmx = json.load(open(f"{CFG}/proxmox.yaml"))
+    except Exception:
+        pmx = {}
+    for grp in static:
+        for items in grp.values():
+            for it in items:
+                for nm, svc in it.items():
+                    if nm in pmx and "widget" not in svc and pmx[nm].get("token"):
+                        svc["widget"] = {"type": "proxmox", "url": pmx[nm]["url"], "username": pmx[nm]["token"],
+                                         "password": pmx[nm]["secret"], "node": nm}
+
     try:
         guest_groups, macs, _ = proxmox(links)
     except Exception as e:

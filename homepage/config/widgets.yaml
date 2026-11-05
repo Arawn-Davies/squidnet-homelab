@@ -1,6 +1,12 @@
+- greeting:
+    text_size: xl
+    text: SQUIDNET
 - datetime:
     text_size: md
     format:
-      dateStyle: long
-      timeStyle: short
+      weekday: long
+      day: numeric
+      month: long
+      hour: 2-digit
+      minute: 2-digit
       hourCycle: h23

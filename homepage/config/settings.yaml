@@ -1,46 +1,71 @@
 {
- "title": "SQUIDLAB",
+ "title": "SQUIDNET",
+ "description": "SQUIDNET homelab",
  "theme": "dark",
  "color": "slate",
- "headerStyle": "clean",
+ "headerStyle": "boxedWidgets",
+ "cardBlur": "md",
+ "statusStyle": "dot",
+ "iconStyle": "theme",
+ "useEqualHeights": true,
  "hideVersion": true,
  "disableUpdateCheck": true,
- "statusStyle": "dot",
+ "hideErrors": true,
+ "target": "_blank",
+ "quicklaunch": {
+  "searchDescriptions": true,
+  "hideInternetSearch": true,
+  "showSearchSuggestions": false,
+  "hideVisitURL": true
+ },
  "layout": {
+  "Overview": {
+   "tab": "Home",
+   "style": "row",
+   "columns": 3,
+   "icon": "mdi-view-dashboard-variant"
+  },
   "Proxmox": {
    "tab": "Home",
    "style": "row",
-   "columns": 4
+   "columns": 4,
+   "icon": "mdi-server-network"
   },
   "Infrastructure": {
    "tab": "Home",
    "style": "row",
-   "columns": 4
+   "columns": 4,
+   "icon": "mdi-lan"
   },
   "Monitoring": {
    "tab": "Home",
    "style": "row",
-   "columns": 4
+   "columns": 4,
+   "icon": "mdi-chart-areaspline"
   },
   "Access": {
    "tab": "Home",
    "style": "row",
-   "columns": 4
+   "columns": 4,
+   "icon": "mdi-key-chain-variant"
   },
   "Security": {
    "tab": "Home",
    "style": "row",
-   "columns": 4
+   "columns": 4,
+   "icon": "mdi-shield-lock"
   },
   "Media": {
    "tab": "Home",
    "style": "row",
-   "columns": 4
+   "columns": 4,
+   "icon": "mdi-play-circle"
   },
   "Lab": {
    "tab": "Home",
    "style": "row",
-   "columns": 4
+   "columns": 4,
+   "icon": "mdi-flask"
   },
   "NODE1 (24/7)": {
    "tab": "Guests",
@@ -82,7 +107,12 @@
    "style": "row",
    "columns": 3
   },
-  "Network · DHCP pool (10.0.1.x)": {
+  "Network · static overflow (10.0.1.x)": {
+   "tab": "Network",
+   "style": "row",
+   "columns": 3
+  },
+  "Network · DHCP pool (10.0.2.x)": {
    "tab": "Network",
    "style": "row",
    "columns": 3

@@ -22,6 +22,7 @@ services:
     volumes:
       - ./config:/app/config
     depends_on: [dockerproxy]
+    networks: [default, proxmon]
 
   # Read-only Docker API for Homepage (container status) and the generator (container list).
   dockerproxy:
@@ -51,3 +52,8 @@ services:
       LISTEN_ADDR: "10.0.0.25"
       # Whole LAN /16. Sweep every 15 min, 2 retries at ~1000 pps (about 2 min per sweep), 10 min timeout.
       APP_CONF_OVERRIDE: '{"GRAPHQL_PORT":"20212","SCAN_SUBNETS":"[''10.0.0.0/16 --interface=eth0'']","ARPSCAN_RUN_SCHD":"*/15 * * * *","ARPSCAN_RUN_TIMEOUT":"600","ARPSCAN_ARGS":"sudo arp-scan --ignoredups --retry=2 --bandwidth=512000","TIMEZONE":"Europe/London"}'
+
+networks:
+  proxmon:
+    name: proxmon_monitoring
+    external: true

@@ -1,5 +1,135 @@
 [
  {
+  "Overview": [
+   {
+    "Cluster": {
+     "icon": "proxmox.png",
+     "href": "https://pve.lab.example.co.uk",
+     "description": "Proxmox VE \u00b7 5 nodes",
+     "widget": {
+      "type": "prometheusmetric",
+      "url": "http://prometheus:9090",
+      "refreshInterval": 30000,
+      "metrics": [
+       {
+        "label": "Nodes up",
+        "query": "count(pve_up{id=~\"node/.*\"} == 1)",
+        "format": {
+         "type": "number"
+        }
+       },
+       {
+        "label": "Guests running",
+        "query": "count(pve_up{id=~\"(lxc|qemu)/.*\"} == 1)",
+        "format": {
+         "type": "number"
+        }
+       },
+       {
+        "label": "CPU",
+        "query": "100 * avg(pve_cpu_usage_ratio{id=~\"node/.*\"})",
+        "format": {
+         "type": "percent"
+        }
+       },
+       {
+        "label": "RAM",
+        "query": "100 * sum(pve_memory_usage_bytes{id=~\"node/.*\"}) / sum(pve_memory_size_bytes{id=~\"node/.*\"})",
+        "format": {
+         "type": "percent"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "Storage": {
+     "icon": "mdi-database",
+     "href": "https://metrics.lab.example.co.uk/d/proxmox-cluster-overview",
+     "description": "ZFS pools & backup disk",
+     "widget": {
+      "type": "prometheusmetric",
+      "url": "http://prometheus:9090",
+      "refreshInterval": 60000,
+      "metrics": [
+       {
+        "label": "MICRO pool",
+        "query": "100 * pve_disk_usage_bytes{id=\"storage/NODE1/cluster\"} / pve_disk_size_bytes{id=\"storage/NODE1/cluster\"}",
+        "format": {
+         "type": "percent"
+        }
+       },
+       {
+        "label": "MIRROR pool",
+        "query": "100 * pve_disk_usage_bytes{id=\"storage/NODE2/cluster\"} / pve_disk_size_bytes{id=\"storage/NODE2/cluster\"}",
+        "format": {
+         "type": "percent"
+        }
+       },
+       {
+        "label": "PBS disk",
+        "query": "100 * pve_disk_usage_bytes{id=\"storage/NODE3/hdd-lvm\"} / pve_disk_size_bytes{id=\"storage/NODE3/hdd-lvm\"}",
+        "format": {
+         "type": "percent"
+        }
+       },
+       {
+        "label": "Guests total",
+        "query": "count(pve_guest_info)",
+        "format": {
+         "type": "number"
+        }
+       }
+      ]
+     }
+    }
+   },
+   {
+    "Security": {
+     "icon": "mdi-shield-check",
+     "href": "https://patch.lab.example.co.uk",
+     "description": "Patches \u00b7 CrowdSec \u00b7 reboots",
+     "widget": {
+      "type": "prometheusmetric",
+      "url": "http://prometheus:9090",
+      "refreshInterval": 60000,
+      "metrics": [
+       {
+        "label": "Security updates",
+        "query": "squidpatch_total_security",
+        "format": {
+         "type": "number"
+        }
+       },
+       {
+        "label": "Critical",
+        "query": "squidpatch_total_critical",
+        "format": {
+         "type": "number"
+        }
+       },
+       {
+        "label": "Reboots pending",
+        "query": "squidpatch_total_reboot",
+        "format": {
+         "type": "number"
+        }
+       },
+       {
+        "label": "CrowdSec bans",
+        "query": "sum(cs_active_decisions) or vector(0)",
+        "format": {
+         "type": "number"
+        }
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
   "Proxmox": [
    {
     "Proxmox VE": {

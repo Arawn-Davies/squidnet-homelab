@@ -1,10 +1,48 @@
 {
- "title": "SQUIDLAB",
+ "title": "SQUIDNET",
+ "description": "SQUIDNET homelab",
  "theme": "dark",
  "color": "slate",
- "headerStyle": "clean",
+ "headerStyle": "boxedWidgets",
+ "cardBlur": "md",
+ "statusStyle": "dot",
+ "iconStyle": "theme",
+ "useEqualHeights": true,
  "hideVersion": true,
  "disableUpdateCheck": true,
- "statusStyle": "dot",
- "layout_overrides": {}
+ "hideErrors": true,
+ "target": "_blank",
+ "quicklaunch": {
+  "searchDescriptions": true,
+  "hideInternetSearch": true,
+  "showSearchSuggestions": false,
+  "hideVisitURL": true
+ },
+ "layout_overrides": {
+  "Overview": {
+   "icon": "mdi-view-dashboard-variant",
+   "columns": 3
+  },
+  "Proxmox": {
+   "icon": "mdi-server-network"
+  },
+  "Infrastructure": {
+   "icon": "mdi-lan"
+  },
+  "Monitoring": {
+   "icon": "mdi-chart-areaspline"
+  },
+  "Access": {
+   "icon": "mdi-key-chain-variant"
+  },
+  "Security": {
+   "icon": "mdi-shield-lock"
+  },
+  "Media": {
+   "icon": "mdi-play-circle"
+  },
+  "Lab": {
+   "icon": "mdi-flask"
+  }
+ }
 }
