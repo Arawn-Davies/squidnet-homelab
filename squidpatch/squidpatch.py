@@ -19,7 +19,9 @@ CRITICAL = re.compile(r"^(openssh-|openssl|libssl|linux-image|pve-kernel|proxmox
                       r"pve-manager|lxc-pve|zfs|libzfs|cloudflared|crowdsec|vaultwarden|jellyfin)")
 EOL = {("debian", "10"): "2024-06-30", ("debian", "11"): "2026-08-31", ("debian", "12"): "2028-06-30",
        ("debian", "13"): "2030-06-30", ("ubuntu", "20.04"): "2025-05-31", ("ubuntu", "22.04"): "2027-06-01",
-       ("ubuntu", "24.04"): "2029-05-31", ("ubuntu", "26.04"): "2031-05-31"}
+       ("ubuntu", "24.04"): "2029-05-31", ("ubuntu", "26.04"): "2031-05-31",
+       # interim (9-month) releases
+       ("ubuntu", "24.10"): "2025-07-10", ("ubuntu", "25.04"): "2026-01-15", ("ubuntu", "25.10"): "2026-07-09"}
 APT_UPGRADE = ("export DEBIAN_FRONTEND=noninteractive LANG=C; apt-get update -q && "
                "apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold full-upgrade; "
                "rc=$?; echo; echo SQUIDPATCH_EXIT=$rc; [ -f /var/run/reboot-required ] && echo 'NOTE: reboot required'; exit $rc")
