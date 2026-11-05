@@ -28,6 +28,8 @@ APT_UPGRADE = ("export DEBIAN_FRONTEND=noninteractive LANG=C; apt-get update -q 
 KEY_RE = re.compile(r"^(node:[A-Za-z0-9-]+|ct:\d{3,5}|vm:\d{3,5})$")
 os.makedirs(JOBDIR, exist_ok=True)
 LOCK = threading.Lock(); HOSTLOCKS = {}; JOBS = {}; COLLECTING = threading.Event()
+CHECKLOG = f"{STATE}/check.log"; CLOCK = threading.Lock()
+CHECK = {"start": None, "end": None, "by": None, "scope": None, "total": 0, "done": 0, "failed": 0, "current": []}
 LOCAL = os.uname().nodename
 
 def now(): return int(time.time())
@@ -132,24 +134,52 @@ def load_status():
 def save_status(st):
     tmp = STATUS + ".tmp"; json.dump(st, open(tmp, "w")); os.replace(tmp, STATUS)
 
-def collect(keys=None):
+def clog(msg):
+    with CLOCK:
+        with open(CHECKLOG, "a") as f: f.write(time.strftime("%H:%M:%S ") + msg + "\n")
+
+def result_line(r):
+    if not r.get("ok"): return ("skipped: " if r.get("skip") else "FAILED: ") + str(r.get("error", ""))
+    c = r["counts"]; o = [f"{c['total']} updates"]
+    if c["security"]: o.append(f"{c['security']} security")
+    if c["critical"]: o.append(f"{c['critical']} CRITICAL")
+    if c.get("kept"): o.append(f"{c['kept']} held")
+    if r.get("reboot"): o.append("reboot needed")
+    return "ok - " + ", ".join(o)
+
+def collect(keys=None, by="timer"):
     """Probe running hosts (all, or just `keys`). Nodes run in parallel; guests on a node sequentially."""
-    COLLECTING.set()
+    COLLECTING.set(); t0 = time.time()
+    with CLOCK:
+        open(CHECKLOG, "w").close()
+        CHECK.update({"start": now(), "end": None, "by": by, "scope": "all" if keys is None else ",".join(sorted(keys)),
+                      "total": 0, "done": 0, "failed": 0, "current": []})
     try:
         inv = inventory(); st = load_status(); hosts = st.get("hosts", {})
         want = [i for i in inv if keys is None or i["key"] in keys]
         bynode = {}
         for i in want: bynode.setdefault(i["node"], []).append(i)
+        n_live = sum(1 for i in want if i["state"] in ("running", "online"))
+        with CLOCK: CHECK["total"] = n_live
+        clog(f"== check started by {by}: {n_live} running hosts on {len(bynode)} nodes ({CHECK['scope']})")
         def work(items):
             for it in items:
                 prev = hosts.get(it["key"], {})
                 base = {**it, "checked": prev.get("checked"), "result": prev.get("result")}
                 if it["state"] not in ("running", "online"):
                     base["stale"] = True; hosts[it["key"]] = base; continue
+                label = f"{it['node']} {it['key']} {it.get('name') or ''}".strip()
+                with CLOCK: CHECK["current"].append(it["key"])
+                ts = time.time()
                 try:
                     r = probe(it)
                 except Exception as e:  # timeout etc.
                     r = {"ok": False, "error": f"{type(e).__name__}: {e}"[:200]}
+                with CLOCK:
+                    CHECK["current"].remove(it["key"]); CHECK["done"] += 1
+                    if not r.get("ok") and not r.get("skip"): CHECK["failed"] += 1
+                    d = CHECK["done"]
+                clog(f"[{d}/{n_live}] {label}: {result_line(r)} ({time.time() - ts:.0f}s)")
                 base.update({"checked": now(), "result": r, "stale": False}); hosts[it["key"]] = base
         ths = [threading.Thread(target=work, args=(v,)) for v in bynode.values()]
         [t.start() for t in ths]; [t.join() for t in ths]
@@ -158,9 +188,13 @@ def collect(keys=None):
             if k not in live: del hosts[k]
             else: hosts[k].update({x: y for x, y in next(i for i in inv if i["key"] == k).items()})
         st = {"generated": now(), "hosts": hosts}; save_status(st)
+        clog(f"== finished: {CHECK['done']} checked, {CHECK['failed']} failed, {time.time() - t0:.0f}s")
         prune_snapshots(inv)
         return st
+    except Exception as e:
+        clog(f"== check aborted: {type(e).__name__}: {e}"); raise
     finally:
+        with CLOCK: CHECK["end"] = now(); CHECK["current"] = []
         COLLECTING.clear()
 
 def prune_snapshots(inv):
@@ -343,10 +377,15 @@ class H(http.server.BaseHTTPRequestHandler):
         elif role not in ("user", "local"): return self.send(403, {"error": "forbidden"})
         if p in ("/", "/index.html"): return self.send(200, open(f"{BASE}/index.html", "rb").read(), "text/html; charset=utf-8")
         if p == "/api/status":
-            st = load_status(); st["collecting"] = COLLECTING.is_set(); st["user"] = user; st["admin"] = user in (ADMIN, "local")
+            st = load_status(); st["collecting"] = COLLECTING.is_set(); st["user"] = user;
+            with CLOCK: st["check"] = {**CHECK, "current": list(CHECK["current"])}
+            st["admin"] = user in (ADMIN, "local")
             st["jobs"] = sorted(JOBS.values(), key=lambda j: -j["start"])[:30]; return self.send(200, st)
         if p == "/api/summary": return self.send(200, summary())
         if p == "/metrics": return self.send(200, metrics(), "text/plain; version=0.0.4")
+        if p == "/api/check/log":
+            try: return self.send(200, open(CHECKLOG, "rb").read(), "text/plain; charset=utf-8")
+            except OSError: return self.send(200, b"No check has run since the service started.\n", "text/plain; charset=utf-8")
         m = re.match(r"^/api/jobs/([0-9a-f]{32})/log$", p)
         if m and m.group(1) in JOBS:
             try: return self.send(200, open(f"{JOBDIR}/{m.group(1)}.log", "rb").read(), "text/plain; charset=utf-8")
@@ -368,7 +407,7 @@ class H(http.server.BaseHTTPRequestHandler):
             key = body.get("key")
             if key is not None and not KEY_RE.match(str(key)): return self.send(400, {"error": "bad key"})
             if COLLECTING.is_set(): return self.send(409, {"error": "a check is already running"})
-            threading.Thread(target=collect, args=(None if key is None else {key},), daemon=True).start()
+            threading.Thread(target=collect, args=(None if key is None else {key}, "timer" if role == "local" else user), daemon=True).start()
             return self.send(202, {"ok": True})
         if p == "/api/upgrade":
             key = str(body.get("key", ""))
@@ -390,6 +429,6 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "collect":
-        s = collect(); print(json.dumps(summary()))
+        s = collect(by="cli"); print(json.dumps(summary()))
     else:
         Server(("0.0.0.0", PORT), H).serve_forever()

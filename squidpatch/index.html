@@ -35,6 +35,14 @@ dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);bo
 dialog header{border:0}dialog pre{margin:0;padding:12px 16px;max-height:60vh;overflow:auto;font-size:12px;background:var(--bg);white-space:pre-wrap}
 dialog .body{padding:14px 16px}dialog .actions{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--line)}
 .jobs td{font-size:13px}
+header{position:relative}
+#prog{position:absolute;left:0;bottom:-1px;height:3px;width:0;background:linear-gradient(90deg,var(--info),var(--ok));transition:width .6s ease;border-radius:0 3px 3px 0}
+#checkLog{display:inline-flex;align-items:center;gap:7px}
+#checkLog.running{border-color:var(--info);color:var(--info);background:color-mix(in srgb,var(--info) 14%,var(--btn))}
+.spin{width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;display:inline-block;animation:sp .8s linear infinite;flex:none}
+.b .spin{width:9px;height:9px;border-width:1.5px;vertical-align:-1px;margin-right:4px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.5s}}
 @media (max-width:760px){.hide-s{display:none}td,th{padding:7px 6px}}
 </style>
 </head>
@@ -43,8 +51,10 @@ dialog .body{padding:14px 16px}dialog .actions{display:flex;gap:8px;justify-cont
   <h1>SQUIDNET Patches<span id="gen">loading…</span></h1>
   <div class="filter">
     <label><input type="checkbox" id="onlyAtt"> only needing attention</label>
+    <button id="checkLog" hidden title="Live log of the package check"></button>
     <button id="checkAll">Check all now</button>
   </div>
+  <div id="prog"></div>
 </header>
 <main>
   <div class="stats" id="stats"></div>
@@ -80,7 +90,7 @@ function row(h){const r=h.result||{},busy=(S.jobs||[]).some(j=>j.key===h.key&&['
  const can=S.admin&&r.ok&&!h.stale&&(r.counts.total-(r.counts.kept||0))>0&&!busy;
  const os=r.os?esc(r.os.pretty):'';const plat=r.platform?`<div class="mut">${esc(r.platform)}</div>`:'';
  let html=`<tr class="host" data-k="${esc(h.key)}"><td class="nowrap"><span class="kind">${h.kind==='node'?'NODE':h.kind.toUpperCase()+' '+esc(h.id)}</span>${esc(h.name)}</td>
- <td class="hide-s">${os}${plat}</td><td>${badges(h)}</td><td class="mut nowrap hide-s">${ago(h.checked)}</td>
+ <td class="hide-s">${os}${plat}</td><td>${(S.check&&(S.check.current||[]).includes(h.key))?'<span class="b info"><span class="spin"></span>checking…</span> ':''}${badges(h)}</td><td class="mut nowrap hide-s">${ago(h.checked)}</td>
  <td class="right nowrap"><button data-a="check" data-k="${esc(h.key)}" ${S.admin&&!h.stale?'':'disabled'}>Check</button>
  <button class="danger" data-a="up" data-k="${esc(h.key)}" ${can?'':'disabled'}>${busy?'Upgrading…':'Upgrade'}</button></td></tr>`;
  if(open.has(h.key)&&r.ok){const pk=r.packages||[];
@@ -107,23 +117,33 @@ function render(){if(!S)return;const H=Object.values(S.hosts),only=$('#onlyAtt')
   <table><thead><tr><th>Host</th><th class="hide-s">OS</th><th>Status</th><th class="hide-s">Checked</th><th></th></tr></thead><tbody>${shown.map(row).join('')}</tbody></table></section>`}).join('');
  const J=S.jobs||[];$('#jobsBox').hidden=!J.length;
  $('#jobs').innerHTML=J.map(j=>`<tr><td>${esc(j.name)} <span class="mut">${esc(j.key)}</span></td><td><span class="b ${j.status==='done'?'ok':j.status==='failed'?'bad':'info'}">${esc(j.status)}</span></td><td class="mut hide-s">${ago(j.start)} by ${esc(j.user)}${j.snapshot?' · snapshot '+esc(j.snapshot):''}</td><td class="right"><button data-a="log" data-j="${esc(j.id)}">Log</button></td></tr>`).join('');
- $('#checkAll').disabled=!S.admin||S.collecting}
-async function load(){try{S=await api('/api/status');render()}catch(e){$('#gen').textContent='error: '+e.message}}
+ $('#checkAll').disabled=!S.admin||S.collecting;
+ const C=S.check||{},cb=$('#checkLog');
+ if(S.collecting){const t=C.total||0,d=C.done||0;cb.hidden=false;cb.className='running';
+  cb.innerHTML=`<span class="spin"></span>Checking ${t?d+' / '+t:'…'}${C.failed?` · <span style="color:var(--bad)">${C.failed} failed</span>`:''}`;
+  cb.title=`Check started ${ago(C.start)} by ${C.by||'?'} - click for the live log`;$('#prog').style.width=(t?Math.max(4,100*d/t):4)+'%';$('#prog').style.opacity=1}
+ else{cb.className='';cb.hidden=!C.start;cb.textContent='Check log';cb.title=C.end?`Last check finished ${ago(C.end)} (${C.done}/${C.total} hosts${C.failed?', '+C.failed+' failed':''}, by ${C.by})`:'';
+  $('#prog').style.width=C.start?'100%':'0';$('#prog').style.opacity=0}}
+let loadT=null;
+async function load(){clearTimeout(loadT);try{S=await api('/api/status');render()}catch(e){$('#gen').textContent='error: '+e.message}loadT=setTimeout(load,S&&S.collecting?3000:15000)}
 function dlg(t,b,actions,log){$('#dlgT').textContent=t;$('#dlgB').innerHTML=b||'';$('#dlgB').hidden=!b;$('#dlgLog').hidden=!log;$('#dlgA').innerHTML='';
  (actions||[]).forEach(([l,f,c])=>{const x=document.createElement('button');x.textContent=l;if(c)x.className=c;x.onclick=f;$('#dlgA').appendChild(x)});$('#dlg').showModal()}
 $('#dlgX').onclick=()=>{clearInterval(logTimer);$('#dlg').close()};
-async function showLog(id){dlg('Upgrade log','',[],true);const f=async()=>{try{$('#dlgLog').textContent=await (await fetch(`/api/jobs/${id}/log`)).text();$('#dlgLog').scrollTop=1e9}catch(_){}};await f();clearInterval(logTimer);logTimer=setInterval(f,3000)}
+async function showLog(id,url,title){dlg(title||'Upgrade log','',[],true);const f=async()=>{try{const L=$('#dlgLog'),stick=L.scrollTop+L.clientHeight>=L.scrollHeight-30;L.textContent=await (await fetch(url||`/api/jobs/${id}/log`)).text();if(stick)L.scrollTop=1e9}catch(_){}};await f();$('#dlgLog').scrollTop=1e9;clearInterval(logTimer);logTimer=setInterval(f,2000)}
+const showCheckLog=()=>showLog(null,'/api/check/log','Package check log');
+$('#checkLog').onclick=showCheckLog;
+$('#dlg').addEventListener('close',()=>clearInterval(logTimer));
 document.addEventListener('click',async e=>{const b=e.target.closest('button[data-a]');
  if(b){e.stopPropagation();const k=b.dataset.k,h=k&&S.hosts[k];
   if(b.dataset.a==='log')return showLog(b.dataset.j);
-  if(b.dataset.a==='check'){b.disabled=true;try{await api('/api/check',{key:k})}catch(x){alert(x.message)}setTimeout(load,1500);return}
+  if(b.dataset.a==='check'){b.disabled=true;try{await api('/api/check',{key:k})}catch(x){if(/already running/.test(x.message))showCheckLog();else alert(x.message)}setTimeout(load,800);return}
   if(b.dataset.a==='up'){const r=h.result,snap=h.kind==='node'?'<p><b>Proxmox node:</b> no snapshot is possible. Guests keep running; kernel updates need a reboot you do yourself.</p>':'<p>A snapshot <code>patch-…</code> is taken first (kept 7 days).</p>';
    const go=async force=>{try{const j=await api('/api/upgrade',{key:k,force});showLog(j.job);setTimeout(load,800)}catch(x){alert(x.message)}};
    dlg(`Upgrade ${h.name} (${h.key})?`,`<p>${r.counts.total} packages (${r.counts.security} security${r.counts.critical?', '+r.counts.critical+' critical':''}) via <code>apt full-upgrade</code>, keeping existing config files. No reboot.</p>${snap}`,
     [['Cancel',()=>$('#dlg').close()],...(h.kind!=='node'?[['Upgrade without snapshot',()=>{if(confirm('Upgrade with no snapshot to roll back to?'))go(true)},'danger']]:[]),['Upgrade',()=>go(false),'danger']]);return}}
  const tr=e.target.closest('tr.host');if(tr){const k=tr.dataset.k;open.has(k)?open.delete(k):open.add(k);render()}});
-$('#checkAll').onclick=async()=>{try{await api('/api/check',{});setTimeout(load,1500)}catch(x){alert(x.message)}};
-load();setInterval(load,15000);
+$('#checkAll').onclick=async()=>{try{await api('/api/check',{});setTimeout(load,800)}catch(x){if(/already running/.test(x.message))showCheckLog();else alert(x.message)}};
+load();
 </script>
 </body>
 </html>
