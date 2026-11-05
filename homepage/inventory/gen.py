@@ -153,7 +153,8 @@ def pihole(macs, names, links):
                 continue
             seen[ip] = dict(mac=mac, last=last, first=d.get("firstSeen") or 0,
                             vendor=(d.get("macVendor") or "").strip(), pname=a.get("name") or "")
-    groups = {"Network · static (10.0.0.x)": [], "Network · DHCP pool (10.0.1.x)": [],
+    groups = {"Network · static (10.0.0.x)": [], "Network · static overflow (10.0.1.x)": [],
+              "Network · DHCP pool (10.0.2.x)": [],
               "Network · other ranges": [], f"Network · not seen for {STALE_DAYS}+ days": []}
     for ip in sorted(seen, key=lambda s: tuple(int(p) for p in s.split("."))):
         s = seen[ip]
@@ -161,14 +162,16 @@ def pihole(macs, names, links):
         day = datetime.date.fromtimestamp(s["last"]).isoformat() if s["last"] else "?"
         bits = [s["mac"].upper(), s["vendor"], f"last seen {day}"]
         stale = s["last"] and now - s["last"] > STALE_DAYS * 86400
-        if ip.startswith("10.0.0.") and ip != "10.0.0.1" and not octet_ok(ip):
+        if (ip.startswith("10.0.0.") or ip.startswith("10.0.1.")) and ip != "10.0.0.1" and not octet_ok(ip):
             bits.append("⚠ not x0/x5")
         if stale:
             g = f"Network · not seen for {STALE_DAYS}+ days"
         elif ip.startswith("10.0.0."):
             g = "Network · static (10.0.0.x)"
         elif ip.startswith("10.0.1."):
-            g = "Network · DHCP pool (10.0.1.x)"
+            g = "Network · static overflow (10.0.1.x)"
+        elif ip.startswith("10.0.2."):
+            g = "Network · DHCP pool (10.0.2.x)"
         else:
             g = "Network · other ranges"
         groups[g].append(card(f"{ip}  {name}", icon="mdi-lan-connect" if not stale else "mdi-lan-disconnect",
