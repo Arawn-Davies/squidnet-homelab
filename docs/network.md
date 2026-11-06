@@ -106,4 +106,4 @@ flowchart TB
 
 ## 10. Internal mail
 
-An internal-only mail server (Stalwart) for service notifications: MX for the lab domain exists only on the LAN DNS; IMAPS/submission from LAN+VPN, plain SMTP from LAN only; outbound 25/465/587 dropped at the guest firewall and relaying limited to the local domain, so nothing can leave for the internet. The web UI sits behind the proxy with an Authentik forward-auth gate; TLS reuses the proxy's wildcard certificate, copied nightly. Planned: OpenPGP encryption at rest and webmail with Authentik SSO.
+An internal-only mail server (docker-mailserver: Postfix + Dovecot, fully FOSS) for service notifications: MX for the lab domain exists only on the LAN DNS; IMAPS (no POP3) and submission from LAN+VPN, plain SMTP from LAN only; outbound 25/465/587 dropped at the guest firewall and relaying limited to the local domain, so nothing can leave for the internet. Webmail (Roundcube, Authentik OAuth) sits behind the proxy; TLS reuses the proxy's wildcard certificate, copied nightly. Encryption at rest via Dovecot mail_crypt (and optionally PGP to the user key).

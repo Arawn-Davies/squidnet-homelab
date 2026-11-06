@@ -91,7 +91,7 @@ sequenceDiagram
 | GitLab Runners ×2 | internal | runner tokens | GitLab | rebuildable | GitLab UI |
 | RomM + file index | LAN only (strict) | Authentik OIDC | proxy, archive dataset | library = archive data; app via PBS | Homepage |
 | LANCache | LAN (via DNS) | none | Pi-hole overrides | not needed (cache) | - |
-| Mail (Stalwart, internal only) | LAN+VPN (web UI behind Authentik forward-auth) | own accounts (OIDC planned via webmail) | local DNS + MX, proxy wildcard cert (synced nightly) | weekly PBS | - |
+| Mail (Postfix + Dovecot, internal only, IMAP only) | LAN+VPN (Roundcube webmail via proxy) | local accounts; Authentik OAuth for webmail | local DNS + MX, proxy wildcard cert (synced nightly) | weekly PBS | - |
 | Prometheus / Grafana / Homepage | LAN+VPN | Authentik | proxy, exporters | weekly PBS + dashboards in git | - |
 | squidpatch | LAN+VPN | forward-auth (admin) | SSH to nodes | git | Grafana alerts |
 | step-ca | LAN+VPN | Authentik OIDC | Authentik | weekly PBS | - |
