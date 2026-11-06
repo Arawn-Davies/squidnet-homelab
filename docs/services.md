@@ -90,7 +90,7 @@ sequenceDiagram
 | GitLab CE | LAN+VPN | Authentik OIDC | proxy, Authentik | daily `gitlab-backup` + `backup-etc` → PBS; it *is* the GitHub backup | sync failures → ntfy |
 | GitLab Runners ×2 | internal | runner tokens | GitLab | rebuildable | GitLab UI |
 | RomM + file index | LAN only (strict) | Authentik OIDC | proxy, archive dataset | library = archive data; app via PBS | Homepage |
-| LANCache | LAN (via DNS) | none | Pi-hole overrides | not needed (cache) | - |
+| LANCache | LAN (via DNS) | none | Pi-hole + router overrides | not needed (cache) | - |
 | Mail (Postfix + Dovecot, internal only, IMAP only) | LAN+VPN (Roundcube webmail via proxy) | local accounts; Authentik OAuth for webmail | local DNS + MX, proxy wildcard cert (synced nightly) | weekly PBS | - |
 | Prometheus / Grafana / Homepage | LAN+VPN | Authentik | proxy, exporters | weekly PBS + dashboards in git | - |
 | squidpatch | LAN+VPN | forward-auth (admin) | SSH to nodes | git | Grafana alerts |
@@ -107,5 +107,5 @@ sequenceDiagram
 | Authentik | SSO logins fail | local admin accounts kept as break-glass on proxy, PVE, PBS, GitLab (root), RomM |
 | Jellyfin primary | public media | automatic failover to the standby while the spare node is on |
 | GitHub | nothing internal | GitLab holds a full copy (branches, tags, archived repos) |
-| LANCache | game downloads on Pi-hole clients fail (DNS still points at the cache) | restart it, or move the override file out of `/etc/dnsmasq.d` and restart Pi-hole to send clients straight to the CDNs |
+| LANCache | game downloads fail (DNS still points at the cache) | restart it, or remove the overrides from both resolvers (move the file out of Pi-hole's `/etc/dnsmasq.d`, delete the router's cache `address`/`server` list entries) and restart both to send clients straight to the CDNs |
 | A node | its guests | backups on PBS; standby services on cold spares; quorum survives one node |

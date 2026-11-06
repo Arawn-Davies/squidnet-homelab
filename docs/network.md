@@ -50,7 +50,8 @@ flowchart LR
 - **`lab.example.co.uk`** names exist only on the LAN DNS (Pi-hole + router). Every one of them points at the **reverse proxy**, never at a backend, so TLS, access lists and SSO are applied in one place. They do not exist in public DNS at all.
 - **`<host>.lan`** names point straight at a guest; used for SSH, git-over-SSH and things that must bypass the proxy.
 - Public names (`example.co.uk`) exist only for the handful of tunnelled services.
-- Both Pi-hole and the router carry the same local records, so the secondary resolver gives the same answers. The **LANCache overrides live only on Pi-hole** (a client that asks the router simply misses the cache - harmless).
+- Both Pi-hole and the router carry the same local records, so the secondary resolver gives the same answers. That includes the **LANCache overrides**: clients also reach the router as their IPv6 DNS server (router advertisements), and the router's rebind protection drops private answers forwarded from Pi-hole, so overrides only on Pi-hole meant clients silently bypassed the cache. The router's entries are generated from Pi-hole's file (`uci` `address` + `server` lists).
+- Each override is an `address=` (A record → cache) **plus** a `local=` / `server=/domain/` line. Since dnsmasq 2.86 an IPv4-only `address=` no longer answers AAAA, so without `local=` clients got the real IPv6 CDN and skipped the cache. With it, AAAA for those names is empty.
 - Pi-hole v6 extra dnsmasq files: enabling `misc.etc_dnsmasq_d` loads *everything* in `/etc/dnsmasq.d` - audit that folder first (a forgotten PXE file once switched on a TFTP server).
 
 ## 4. Access tiers
