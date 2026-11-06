@@ -103,3 +103,7 @@ flowchart TB
 
 - **VLANs** on the managed switch: management/BMC, servers, clients, IoT, guests - turning today's /24 conventions into enforced segments.
 - PXE boot (netboot) once VLANs exist.
+
+## 10. Internal mail
+
+An internal-only mail server (Stalwart) for service notifications: MX for the lab domain exists only on the LAN DNS; IMAPS/submission from LAN+VPN, plain SMTP from LAN only; outbound 25/465/587 dropped at the guest firewall and relaying limited to the local domain, so nothing can leave for the internet. The web UI sits behind the proxy with an Authentik forward-auth gate; TLS reuses the proxy's wildcard certificate, copied nightly. Planned: OpenPGP encryption at rest and webmail with Authentik SSO.
