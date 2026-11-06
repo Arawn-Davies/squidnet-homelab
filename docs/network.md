@@ -97,6 +97,7 @@ flowchart TB
 ## 8. Remote and out-of-band access
 
 - SSH everywhere uses **short-lived certificates** from a self-hosted step-ca, issued after an Authentik login (24 h default, 7 days max); nodes and guests trust the user CA via `TrustedUserCAKeys`.
+- Target: **key/certificate-only SSH everywhere** (`PasswordAuthentication no`, `PermitRootLogin prohibit-password` via an `sshd_config.d` drop-in, validated with `sshd -t` and rolled back on failure), CA trust rolled out first so certificate logins keep working. Musl-specific OpenSSH issues (e.g. the 2026 Alpine `crypt()` password bypass) don't apply here: every sshd is a glibc/PAM build and the edge router uses Dropbear with passwords off.
 - Node BMCs are LAN-only and reached through a bastion container (old cipher suites isolated there).
 
 ## 9. Planned
