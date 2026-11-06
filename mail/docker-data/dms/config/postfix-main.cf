@@ -1,0 +1,4 @@
+# mailhost: internal-only. Refuse non-local recipients for everyone; anything else bounces.
+smtpd_relay_restrictions = reject_unauth_destination
+default_transport = error:5.7.1 internal-only mail server, external delivery disabled
+relay_transport = error:5.7.1 internal-only mail server, external delivery disabled

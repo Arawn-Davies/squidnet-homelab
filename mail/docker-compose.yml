@@ -1,0 +1,38 @@
+# Internal-only mail for lab.example.co.uk (LAN/VPN). docker-mailserver = Postfix + Dovecot (MIT). IMAP only, no POP3.
+services:
+  mailserver:
+    image: ghcr.io/docker-mailserver/docker-mailserver:16.0.1
+    container_name: mailserver
+    hostname: smtp.lab.example.co.uk
+    env_file: mailserver.env
+    ports:
+      - "25:25"     # SMTP (LAN devices; local domain only)
+      - "465:465"   # submission, implicit TLS
+      - "587:587"   # submission, STARTTLS
+      - "993:993"   # IMAPS
+    volumes:
+      - ./docker-data/dms/mail-data/:/var/mail/
+      - ./docker-data/dms/mail-state/:/var/mail-state/
+      - ./docker-data/dms/mail-logs/:/var/log/mail/
+      - ./docker-data/dms/config/:/tmp/docker-mailserver/
+      - ./certs/:/certs/:ro
+      - /etc/localtime:/etc/localtime:ro
+    restart: always
+    stop_grace_period: 1m
+  roundcube:
+    image: roundcube/roundcubemail:1.7.5-apache
+    container_name: roundcube
+    restart: always
+    environment:
+      ROUNDCUBEMAIL_DEFAULT_HOST: ssl://imap.lab.example.co.uk
+      ROUNDCUBEMAIL_DEFAULT_PORT: "993"
+      ROUNDCUBEMAIL_SMTP_SERVER: ssl://smtp.lab.example.co.uk
+      ROUNDCUBEMAIL_SMTP_PORT: "465"
+      ROUNDCUBEMAIL_DB_TYPE: sqlite
+      ROUNDCUBEMAIL_SKIN: elastic
+      ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE: 25M
+    volumes:
+      - ./roundcube/db:/var/roundcube/db
+      - ./roundcube/config:/var/roundcube/config:ro
+      - ./roundcube/enigma:/var/roundcube/enigma
+    ports: ["8080:80"]

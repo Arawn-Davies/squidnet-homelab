@@ -1,0 +1,46 @@
+# Authentik blueprint: Roundcube webmail (mail.lab.example.co.uk) OAuth -> Dovecot XOAUTH2/OAUTHBEARER. Bound to akadmin only. 2026-11-06
+# Dovecot (docker-mailserver) validates tokens against /application/o/userinfo/ and uses the `email` claim as the mailbox,
+# so this app emits the user's internal mailbox (user attribute `mailhost`, set once by merge - NOT via blueprint,
+# because blueprints replace the whole attributes dict on every re-apply) instead of their real email.
+version: 1
+metadata:
+  name: squidlab-roundcube
+  labels:
+    blueprints.goauthentik.io/description: "Roundcube webmail SSO (internal mail)"
+entries:
+  - model: authentik_providers_oauth2.scopemapping
+    id: rc-email
+    identifiers: {name: "squidlab: internal mailbox email"}
+    attrs:
+      scope_name: email
+      description: "Internal mailbox address (attribute mailhost)"
+      expression: |
+        addr = request.user.attributes.get("mailhost")
+        return {"email": addr or request.user.email, "email_verified": True}
+  - model: authentik_providers_oauth2.oauth2provider
+    id: rc-provider
+    identifiers: {name: Roundcube}
+    attrs:
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      client_type: confidential
+      grant_types: [authorization_code, refresh_token]
+      client_id: roundcube
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      sub_mode: hashed_user_id
+      include_claims_in_id_token: true
+      access_token_validity: hours=1
+      redirect_uris:
+        - {matching_mode: strict, url: "https://mail.lab.example.co.uk/index.php/login/oauth"}
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !KeyOf rc-email
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-offline_access]]
+  - model: authentik_core.application
+    id: rc-app
+    identifiers: {slug: roundcube}
+    attrs: {name: Webmail, provider: !KeyOf rc-provider, meta_launch_url: "https://mail.lab.example.co.uk", meta_description: "Internal mail (Roundcube)", policy_engine_mode: any}
+  - model: authentik_policies.policybinding
+    identifiers: {target: !KeyOf rc-app, user: !Find [authentik_core.user, [username, akadmin]]}
+    attrs: {order: 0, enabled: true}

@@ -1,0 +1,2 @@
+submission/inet/smtpd_relay_restrictions=reject_unauth_destination,permit_sasl_authenticated,reject
+submissions/inet/smtpd_relay_restrictions=reject_unauth_destination,permit_sasl_authenticated,reject
