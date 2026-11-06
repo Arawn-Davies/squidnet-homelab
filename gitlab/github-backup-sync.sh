@@ -57,6 +57,12 @@ while IFS=$'\t' read -r name vis arch defb desc; do
     git -C "$d" -c http.extraHeader="$GLA" push -q "https://$GLH/$NS/$name.git" "$old:refs/tags/backup/$br/$DATE" 2>>$LOG && { echo "KEPT $name $br old tip -> tag backup/$br/$DATE"; forced=$((forced+1)); }
   done
   unset have
+  # skip the push when gitserver already has exactly these branches/tags (archived projects reject pushes)
+  lr=$(git -C "$d" for-each-ref --format='%(objectname) %(refname)' refs/heads refs/tags | sort)
+  rr=$(git -C "$d" -c http.extraHeader="$GLA" ls-remote --heads --tags "https://$GLH/$NS/$name.git" 2>/dev/null | grep -v '\^{}$' | awk '{print $1" "$2}' | sort)
+  if [ "$lr" = "$rr" ]; then ok=$((ok+1)); continue; fi
+  was_arch=$(gl "$GL/projects/$pid" | python3 -c "import json,sys;print(str(json.load(sys.stdin).get('archived')).lower())")
+  [ "$was_arch" = true ] && gl -X POST "$GL/projects/$pid/unarchive" >/dev/null
   if git -C "$d" -c http.extraHeader="$GLA" push -q --force "https://$GLH/$NS/$name.git" 'refs/heads/*:refs/heads/*' 'refs/tags/*:refs/tags/*' 2>>$LOG; then
     [ -n "$defb" ] && gl -X PUT "$GL/projects/$pid" -d "{\"default_branch\":\"$defb\"}" >/dev/null
     a=$(gl "$GL/projects/$pid" | python3 -c "import json,sys;print(str(json.load(sys.stdin).get('archived')).lower())")
@@ -65,6 +71,7 @@ while IFS=$'\t' read -r name vis arch defb desc; do
     ok=$((ok+1))
   else
     echo "FAIL push $name"; fail=$((fail+1))
+    [ "$was_arch" = true ] && gl -X POST "$GL/projects/$pid/archive" >/dev/null
   fi
 done <<< "$repos"
 echo "== $(date '+%F %T') done: ok=$ok new=$new force-push-tips-kept=$forced fail=$fail"
