@@ -11,6 +11,7 @@ if grep -qE '^\s*Include\s+/etc/ssh/sshd_config\.d/\*\.conf' /etc/ssh/sshd_confi
 else
   grep -q '^TrustedUserCAKeys /etc/ssh/squidnet_user_ca.pub' /etc/ssh/sshd_config || { cp -n /etc/ssh/sshd_config /etc/ssh/sshd_config.bak-ca-2026-11-05; printf '\n%s\n' "TrustedUserCAKeys /etc/ssh/squidnet_user_ca.pub" >> /etc/ssh/sshd_config; }; how=main
 fi
+mkdir -p /run/sshd 2>/dev/null; chmod 755 /run/sshd 2>/dev/null   # socket-activated sshd (Debian 13) has no /run/sshd until a connection; sshd -t needs it
 if $SSHD -t 2>/tmp/sshd-t.err; then
   (systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || rc-service sshd reload 2>/dev/null || /etc/init.d/sshd reload 2>/dev/null || /etc/init.d/ssh reload 2>/dev/null) >/dev/null
   eff=$($SSHD -T 2>/dev/null | grep -iE '^(trustedusercakeys|permitrootlogin|authorizedprincipalsfile) ' | awk '{print $1"="$2}' | tr '\n' ' ')
