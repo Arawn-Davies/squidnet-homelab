@@ -6,7 +6,7 @@ Fill in `.env` from `.env.example` and replace the example domains first (see th
 ## 0. Assumptions
 
 - Proxmox VE cluster with a shared ZFS storage called `cluster`; LAN `10.0.0.0/16`, gateway/router `10.0.0.1` (OpenWrt), Pi-hole for local DNS.
-- Static IPs end in 0 or 5; `10.0.1.x` is the DHCP pool only.
+- Static IPs end in 0 or 5: `10.0.0.x` core static, `10.0.1.x` static overflow, `10.0.2.x` DHCP pool only (see [network.md](network.md)).
 - Public traffic only ever arrives through a Cloudflare Tunnel to the `flareon` container; nothing is port-forwarded except WireGuard (UDP 51820).
 
 ## 1. Identity: Authentik

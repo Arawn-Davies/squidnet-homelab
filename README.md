@@ -28,7 +28,7 @@ listed in [`.env.example`](.env.example). Domains are `example.co.uk` (public) a
 | [`games/`](games) | **LAN-only** game library (RomM + read-only file index) and LANCache download cache with Pi-hole DNS overrides |
 | [`tools/`](tools) | `archive-inventory.py`: read-only inventory + content-duplicate finder for a large archive dataset |
 | [`jellyfin-standby/`](jellyfin-standby) | Cold-standby Jellyfin on a spare node: incremental ZFS media sync, config sync, nginx `backup` upstream |
-| [`docs/`](docs) | [Diagrams](docs/diagrams.md) (Mermaid), [architecture overview](docs/architecture.md) and the [rebuild guide](docs/REBUILD.md) |
+| [`docs/`](docs) | [Network](docs/network.md) (addressing, DNS, access tiers, firewall layers), [services & how they link](docs/services.md), [diagrams](docs/diagrams.md) (Mermaid), [architecture overview](docs/architecture.md) and the [rebuild guide](docs/REBUILD.md) |
 
 ## Grafana dashboards
 
