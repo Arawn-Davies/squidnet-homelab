@@ -17,13 +17,16 @@ listed in [`.env.example`](.env.example). Domains are `example.co.uk` (public) a
 | [`monitoring/proxmon/`](monitoring/proxmon) | Docker Compose stack: Prometheus, Grafana, pve-exporter, node-exporter, cAdvisor, SNMP exporter, with all scrape jobs inline |
 | [`homepage/`](homepage) | [Homepage](https://gethomepage.dev) config + `inventory/gen.py`, which generates the service list from the Proxmox API, Docker and Pi-hole |
 | [`squidpatch/`](squidpatch) | Agentless "outdated packages" dashboard for every node/CT/VM, with snapshot-then-upgrade buttons, Prometheus metrics and a Homepage widget endpoint |
-| [`authentik/`](authentik) | Authentik blueprints: OIDC for Proxmox VE, PBS, Portainer, Grafana, Vaultwarden, step-ca, CrowdSec UI; forward-auth for LAN pages |
+| [`authentik/`](authentik) | Authentik blueprints: OIDC for Proxmox VE, PBS, Portainer, Grafana, Vaultwarden, step-ca, CrowdSec UI, GitLab, RomM; forward-auth for LAN pages |
 | [`npm/`](npm) | Nginx Proxy Manager host list (domains → backends, access lists) and the Jellyfin failover upstream |
 | [`flareon/`](flareon) | Public ingress: nginx behind a Cloudflare Tunnel, CrowdSec custom brute-force scenarios, LAPI firewall |
 | [`router/`](router) | OpenWrt: WireGuard road-warrior VPN (routed, no NAT), peer/QR helper, DDNS, CrowdSec → banIP feed |
 | [`suricata/`](suricata) | Suricata IDS in an LXC fed by a tc mirror of a node's NIC; ET Open rules; high-severity alerts → ntfy |
 | [`ntfy/`](ntfy) | Self-hosted ntfy push notifications (deny-all, token publishers) |
 | [`step-ca/`](step-ca) | SSH certificate authority: short-lived certs via Authentik OIDC, rollout script for `TrustedUserCAKeys` |
+| [`gitlab/`](gitlab) | Self-hosted GitLab CE as a **backup of GitHub**: Authentik SSO, nightly GitHub → GitLab sync that never deletes, GitLab Runners (Docker executor) on two LXCs |
+| [`games/`](games) | **LAN-only** game library (RomM + read-only file index) and LANCache download cache with Pi-hole DNS overrides |
+| [`tools/`](tools) | `archive-inventory.py`: read-only inventory + content-duplicate finder for a large archive dataset |
 | [`jellyfin-standby/`](jellyfin-standby) | Cold-standby Jellyfin on a spare node: incremental ZFS media sync, config sync, nginx `backup` upstream |
 | [`docs/`](docs) | [Diagrams](docs/diagrams.md) (Mermaid), [architecture overview](docs/architecture.md) and the [rebuild guide](docs/REBUILD.md) |
 

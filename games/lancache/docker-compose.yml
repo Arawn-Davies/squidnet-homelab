@@ -1,0 +1,16 @@
+# LANCache monolithic: transparent HTTP cache for game downloads. Clients are steered here by Pi-hole DNS overrides.
+services:
+  lancache:
+    image: lancachenet/monolithic:latest
+    container_name: lancache
+    restart: unless-stopped
+    environment:
+      CACHE_DISK_SIZE: 950g
+      CACHE_INDEX_SIZE: 250m
+      CACHE_MAX_AGE: 3650d
+      UPSTREAM_DNS: "9.9.9.9 1.1.1.1"
+      TZ: Europe/London
+    volumes:
+      - /data/lancache/data:/data/cache
+      - /data/lancache/logs:/data/logs
+    ports: ["80:80"]
