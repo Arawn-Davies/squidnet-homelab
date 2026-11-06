@@ -6,8 +6,10 @@ for svc in steam epicgames blizzard riot origin uplay xboxlive nintendo sony; do
     curl -fsSL "https://raw.githubusercontent.com/uklans/cache-domains/master/$f" >> $T/all.txt; echo >> $T/all.txt
   done
 done
+# Extra domains not (or no longer) in uklans/cache-domains. steampipe.akamaized.net: Steam's Akamai HTTP depot CDN.
+printf '%s\n' ${LANCACHE_EXTRA_DOMAINS:-steampipe.akamaized.net} >> $T/all.txt
 { echo "# LANCache overrides -> the LANCache container ($IP). Generated $(date +%F) from uklans/cache-domains."
-  echo "# Services: steam epicgames blizzard riot origin uplay xboxlive nintendo sony (no Windows Update)."
+  echo "# Services: steam epicgames blizzard riot origin uplay xboxlive nintendo sony (no Windows Update); extras: ${LANCACHE_EXTRA_DOMAINS:-steampipe.akamaized.net}."
   echo "# address= answers A with the cache. local= makes AAAA (and every other type) NODATA instead of forwarding:"
   echo "# since dnsmasq 2.86 an IPv4-only address= no longer blocks AAAA, so clients would get the real IPv6 CDN and skip the cache."
   grep -vE '^\s*(#|$)' $T/all.txt | sed -E 's/^\*\.//; s/\s+//g' | sort -u | awk -v ip="$IP" '{print "address=/" $0 "/" ip; print "local=/" $0 "/"}'; } > $OUT.new
