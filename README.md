@@ -27,7 +27,7 @@ listed in [`.env.example`](.env.example). Domains are `example.co.uk` (public) a
 | [`gitlab/`](gitlab) | Self-hosted GitLab CE as a **backup of GitHub**: Authentik SSO, nightly GitHub → GitLab sync that never deletes, GitLab Runners (Docker executor) on two LXCs |
 | [`mail/`](mail) | Internal-only mail: docker-mailserver (Postfix + Dovecot, IMAP only), relaying locked to the local domain, Roundcube webmail with Authentik SSO (XOAUTH2) |
 | [`games/`](games) | **LAN-only** game library (RomM + read-only file index) and LANCache download cache with Pi-hole DNS overrides |
-| [`tools/`](tools) | `archive-inventory.py`: read-only inventory + content-duplicate finder for a large archive dataset |
+| [`tools/`](tools) | `archive-inventory.py`: read-only inventory + content-duplicate finder for a large archive dataset; hard-link dedupe; [`snapshot-release/`](tools/snapshot-release): prove destroying ZFS snapshots loses nothing, preserve what would |
 | [`jellyfin-standby/`](jellyfin-standby) | Cold-standby Jellyfin on a spare node: incremental ZFS media sync, config sync, nginx `backup` upstream |
 | [`docs/`](docs) | [Network](docs/network.md) (addressing, DNS, access tiers, firewall layers), [services & how they link](docs/services.md), [diagrams](docs/diagrams.md) (Mermaid), [architecture overview](docs/architecture.md) and the [rebuild guide](docs/REBUILD.md) |
 
